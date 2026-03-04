@@ -3,7 +3,7 @@ import requests
 import xml.etree.ElementTree as ET
 import urllib.parse
 import google.generativeai as genai
-import threading # 導入多執行緒模組 (影分身之術)
+import threading 
 
 # --- 1. 新聞抓取模組 ---
 def get_google_news(query):
@@ -24,9 +24,8 @@ def get_google_news(query):
     except Exception:
         return None
 
-# --- 新增：Yahoo 單一神技 (帶入漲跌幅計算) ---
+# --- 新增：Yahoo 單一神技 ---
 def fetch_yahoo_single(sym, result_dict):
-    # 使用 v8 通道，這是我們之前測試過最不容易被雲端封鎖的底層通道
     url = f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}?range=5d&interval=1d"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -40,27 +39,22 @@ def fetch_yahoo_single(sym, result_dict):
         if len(valid) >= 2:
             price = valid[-1]
             prev = valid[-2]
-            # 計算 24 小時漲跌幅
             result_dict[sym] = {'price': price, 'change': ((price - prev) / prev) * 100}
         elif len(valid) == 1:
             result_dict[sym] = {'price': valid[0], 'change': 0.0}
     except:
-        pass # 若抓取失敗則不寫入，UI 會自動顯示警告
+        pass 
 
-# --- 新增：多執行緒批次抓取 (同時派出多個機器人) ---
+# --- 新增：多執行緒批次抓取 ---
 def get_yahoo_bulk_threaded(symbols_list):
     result = {}
     threads = []
-    # 為每個股票代號建立一個獨立的抓取執行緒
     for sym in symbols_list:
         t = threading.Thread(target=fetch_yahoo_single, args=(sym, result))
         threads.append(t)
         t.start()
-    
-    # 等待所有機器人都抓完資料回來
     for t in threads:
         t.join()
-        
     return result
 
 # --- 2. 介面與設定 ---
@@ -82,7 +76,6 @@ with tab1:
         "Bitcoin (BTC)": "BTC_USDT", "Ethereum (ETH)": "ETH_USDT", "Cardano (ADA)": "ADA_USDT"
     }
     
-    # 對應真實世界的美股與期貨代號
     yahoo_groups = {
         "💻 科技巨頭與半導體 (真實美股)": {
             "英偉達 (NVDA)": "NVDA", "特斯拉 (TSLA)": "TSLA", "蘋果 (AAPL)": "AAPL", 
@@ -112,7 +105,6 @@ with tab1:
 
     @st.fragment(run_every="30s")
     def auto_refresh_dual_engine():
-        # --- 引擎 A：Pionex ---
         pionex_data = {}
         try:
             res = requests.get("https://api.pionex.com/api/v1/market/tickers", timeout=5)
@@ -131,12 +123,10 @@ with tab1:
                 else:
                     cols[idx % 4].warning(f"無 {symbol}")
 
-        # --- 引擎 B：Yahoo 多執行緒部隊 ---
         all_yahoo_symbols = []
         for group in yahoo_groups.values():
             all_yahoo_symbols.extend(group.values())
         
-        # 啟動多執行緒同時抓取
         yahoo_data = get_yahoo_bulk_threaded(all_yahoo_symbols)
 
         for group_name, tokens in yahoo_groups.items():
@@ -146,7 +136,6 @@ with tab1:
                 for idx, (label, symbol) in enumerate(tokens.items()):
                     stock = yahoo_data.get(symbol)
                     if stock and stock['price'] > 0:
-                        # 如果價格小於 1，顯示 4 位小數，否則顯示 2 位
                         formatted_price = f"${stock['price']:,.4f}" if stock['price'] < 1 else f"${stock['price']:,.2f}"
                         cols[idx % 4].metric(label, formatted_price, f"{stock['change']:.2f}%")
                     else:
@@ -173,14 +162,14 @@ with tab2:
                     st.warning("⚠️ 查無有效報價，可能為非交易時間。")
             except Exception as e: st.error(f"❌ 抓取失敗：{e}")
 
-# 【分頁 3】投資計畫與資產試算 (009816 & QQQM)
+# 【分頁 3】超級複利試算機 (009816 & QQQM)
 with tab3:
-    st.subheader("⭐ 長期投資計畫與資產試算")
-    st.info("根據你的計畫：長期投資 QQQM (美股) 與 009816 (台股不配息市值型 ETF)")
+    st.subheader("⭐ 長期投資計畫與複利試算")
+    st.info("透過設定每月投入與預估年化報酬，推算未來的資產成長軌跡！")
     
     live_qqqm_price = 0.0
     live_009816_price = 0.0
-    with st.spinner("正在更新試算匯率與價格..."):
+    with st.spinner("正在抓取最新市場價格..."):
         try:
             res_dict = {}
             fetch_yahoo_single("QQQM", res_dict)
@@ -190,19 +179,69 @@ with tab3:
         except: pass
 
     if live_qqqm_price and live_009816_price:
+        # --- 第一區塊：現值計算 ---
+        st.markdown("### 1️⃣ 目前資產現值")
         col_inv1, col_inv2 = st.columns(2)
+        
         with col_inv1:
             qqqm_shares = st.number_input("目前持有 QQQM 股數：", min_value=0.0, value=0.0, step=0.1)
-            st.write(f"現值：**${(qqqm_shares * live_qqqm_price):,.2f}** USD")
+            qqqm_current_value_usd = qqqm_shares * live_qqqm_price
+            st.write(f"現值：**${qqqm_current_value_usd:,.2f}** USD")
+            
         with col_inv2:
             tw_shares = st.number_input("目前持有 009816 股數：", min_value=0.0, value=0.0, step=1.0)
-            tw_value_twd = tw_shares * live_009816_price
-            st.write(f"現值：**NT$ {tw_value_twd:,.0f}**")
+            tw_current_value_twd = tw_shares * live_009816_price
+            st.write(f"現值：**NT$ {tw_current_value_twd:,.0f}**")
             
+        exchange_rate = st.number_input("預估美金匯率：", min_value=28.0, value=32.5, step=0.1)
+        total_current_twd = (qqqm_current_value_usd * exchange_rate) + tw_current_value_twd
+        st.success(f"**當前總資產估值：NT$ {total_current_twd:,.0f}**")
+
         st.divider()
-        exchange_rate = 32.5
-        total_twd = (qqqm_shares * live_qqqm_price * exchange_rate) + tw_value_twd
-        st.success(f"### 總資產估值：**NT$ {total_twd:,.0f}**")
+
+        # --- 第二區塊：未來複利推算 ---
+        st.markdown("### 2️⃣ 🚀 未來複利推算 (定期定額)")
+        invest_years = st.slider("預計投資年限 (年)：", min_value=1, max_value=40, value=20)
+        
+        col_calc1, col_calc2 = st.columns(2)
+        with col_calc1:
+            st.markdown("#### 🇺🇸 QQQM 計畫")
+            qqqm_monthly = st.number_input("每月投入 (USD)：", min_value=0, value=40, step=10)
+            qqqm_rate = st.number_input("預估年化報酬率 (%)：", min_value=1.0, value=10.0, step=0.5, key="q_rate")
+
+        with col_calc2:
+            st.markdown("#### 🇹🇼 009816 計畫")
+            tw_monthly = st.number_input("每月投入 (TWD)：", min_value=0, value=24375, step=1000)
+            tw_rate = st.number_input("預估年化報酬率 (%)：", min_value=1.0, value=8.0, step=0.5, key="tw_rate")
+
+        # --- 複利計算邏輯 ---
+        months = invest_years * 12
+
+        # QQQM 計算 (按月複利)
+        qqqm_monthly_rate = (qqqm_rate / 100) / 12
+        qqqm_fv_present = qqqm_current_value_usd * ((1 + qqqm_monthly_rate) ** months)
+        qqqm_fv_future = qqqm_monthly * (((1 + qqqm_monthly_rate) ** months - 1) / qqqm_monthly_rate) if qqqm_monthly_rate > 0 else qqqm_monthly * months
+        qqqm_total_fv_usd = qqqm_fv_present + qqqm_fv_future
+
+        # 009816 計算 (按月複利)
+        tw_monthly_rate = (tw_rate / 100) / 12
+        tw_fv_present = tw_current_value_twd * ((1 + tw_monthly_rate) ** months)
+        tw_fv_future = tw_monthly * (((1 + tw_monthly_rate) ** months - 1) / tw_monthly_rate) if tw_monthly_rate > 0 else tw_monthly * months
+        tw_total_fv_twd = tw_fv_present + tw_fv_future
+
+        total_future_twd = (qqqm_total_fv_usd * exchange_rate) + tw_total_fv_twd
+        total_invested_twd = total_current_twd + (qqqm_monthly * exchange_rate * months) + (tw_monthly * months)
+
+        # 顯示最終結果
+        st.info(f"💡 {invest_years} 年後，您的累積投入總本金約為：**NT$ {total_invested_twd:,.0f}**")
+        st.error(f"🎉 **{invest_years} 年後總資產預估達：NT$ {total_future_twd:,.0f}**")
+
+        with st.expander("📊 查看詳細試算結果"):
+            st.write(f"- **QQQM 未來總價值**：${qqqm_total_fv_usd:,.2f} USD (折合台幣約 NT$ {qqqm_total_fv_usd*exchange_rate:,.0f})")
+            st.write(f"- **009816 未來總價值**：NT$ {tw_total_fv_twd:,.0f}")
+            profit = total_future_twd - total_invested_twd
+            st.write(f"- **時間創造的複利淨收益**：NT$ {profit:,.0f}")
+
     else:
         st.warning("無法取得試算價格，請稍後再試。")
 
