@@ -65,26 +65,20 @@ st.title("📈 TSOU財經資訊中心")
 st.sidebar.header("⚙️ 系統設定")
 api_key = st.sidebar.text_input("輸入 Gemini API Key (啟動 AI):", type="password").strip()
 
-# --- 3. 建立 5 大分頁 (依照你的要求重新排序) ---
+# --- 3. 建立 5 大分頁 ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📖 SA 助理", "🎧 KOL 提煉", "🪙 全市場儀表板", "💾 記憶體產業", "⭐ 投資與試算"
 ])
 
-# 【分頁 1】Seeking Alpha AI 專業助理 (優化升級版)
+# 【分頁 1】Seeking Alpha AI 專業助理
 with tab1:
     st.subheader("📖 Seeking Alpha AI 專業閱讀助理")
     st.markdown("將冗長的英文分析報告，瞬間轉換為結構化的中文多空決策指南。")
     
     col_sa1, col_sa2 = st.columns([2, 1])
-    
     with col_sa2:
         st.info("💡 **優化指南**\n\n1. 複製 SA 文章全文\n2. 選擇分析側重點\n3. 點擊生成報告")
-        focus_area = st.selectbox("🎯 選擇分析側重點：", [
-            "全面平衡分析 (預設)", 
-            "偏重看多與護城河分析", 
-            "偏重看空與財報風險預警"
-        ])
-        
+        focus_area = st.selectbox("🎯 選擇分析側重點：", ["全面平衡分析 (預設)", "偏重看多與護城河分析", "偏重看空與財報風險預警"])
     with col_sa1:
         sa_article = st.text_area("📝 請在此貼上 Seeking Alpha 文章內容：", height=250)
     
@@ -96,24 +90,18 @@ with tab1:
                 try:
                     genai.configure(api_key=api_key)
                     focus_prompt = ""
-                    if focus_area == "偏重看多與護城河分析":
-                        focus_prompt = "請特別深度挖掘文章中看好該公司的理由、競爭優勢（護城河）以及未來的潛在催化劑。"
-                    elif focus_area == "偏重看空與財報風險預警":
-                        focus_prompt = "請特別深度挖掘文章中提到的潛在風險、財報隱憂、總體經濟的不利因素或競爭劣勢。"
-                    else:
-                        focus_prompt = "請客觀平衡地呈現文章的多空觀點。"
+                    if focus_area == "偏重看多與護城河分析": focus_prompt = "請特別深度挖掘文章中看好該公司的理由、競爭優勢（護城河）以及未來的潛在催化劑。"
+                    elif focus_area == "偏重看空與財報風險預警": focus_prompt = "請特別深度挖掘文章中提到的潛在風險、財報隱憂、總體經濟的不利因素或競爭劣勢。"
+                    else: focus_prompt = "請客觀平衡地呈現文章的多空觀點。"
 
                     sa_prompt = f"""
                     你現在是一位專業的華爾街首席分析師。請幫我閱讀以下這篇 Seeking Alpha 的分析文章，
                     並以「繁體中文」輸出以下結構化的重點整理，幫助我大幅提升閱讀速度與決策效率：
-
                     {focus_prompt}
-
                     1. 🎯 【核心觀點】：一句話總結作者對這檔標的的主要看法（強烈買進、持有、還是賣出？原因為何？）。
                     2. 🐂 【看多論點與護城河】：條列式列出作者認為會上漲的理由或優勢。
                     3. 🐻 【看空論點與風險】：條列式列出作者提到的隱憂或財報弱點。
                     4. 💡 【關鍵數據與催化劑】：列出文章中提到的重要財報數據或即將發生的關鍵事件。
-
                     文章內容如下：
                     {sa_article}
                     """
@@ -124,7 +112,7 @@ with tab1:
                 except Exception as e:
                     st.error(f"❌ AI 解析失敗：{e}")
 
-# 【分頁 2】財經 KOL 影音/貼文提煉引擎
+# 【分頁 2】財經 KOL 影音/貼文提煉引擎 (加入強制翻譯與抓蟲雷達)
 with tab2:
     st.subheader("🎧 財經 KOL 重點提煉引擎")
     st.info("支援名單：股癌、財女珍妮、游庭皓、宏爺講股、各大 FB 財經粉專等。")
@@ -139,19 +127,24 @@ with tab2:
             else:
                 video_id = get_yt_video_id(yt_url)
                 if video_id:
-                    with st.spinner("🕵️‍♂️ 正在掃描 YouTube 隱藏字幕清單..."):
+                    with st.spinner("🕵️‍♂️ 正在突破 YouTube 限制，掃描所有可用字幕..."):
                         try:
+                            # 1. 取得這部影片所有的字幕清單
                             transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
                             transcript = None
-                            try: transcript = transcript_list.find_transcript(['zh-TW', 'zh-Hant', 'zh', 'zh-Hans']).fetch()
+                            
+                            try:
+                                # 策略 A：先找標準的繁中或簡中
+                                transcript = transcript_list.find_transcript(['zh-TW', 'zh-Hant', 'zh', 'zh-Hans']).fetch()
                             except:
+                                # 策略 B：找不到中文，就隨便抓一個語言（比如自動生成的英文/印尼文等），然後「強制翻譯」成繁體中文！
                                 for t in transcript_list:
-                                    transcript = t.fetch()
+                                    transcript = t.translate('zh-Hant').fetch()
                                     break
                             
                             if transcript:
                                 full_text = " ".join([t['text'] for t in transcript])
-                                with st.spinner("🤖 字幕抓取成功！AI 正在為您跨語系翻譯並提煉總結..."):
+                                with st.spinner("🤖 字幕擷取成功！AI 正在為您提煉總結..."):
                                     genai.configure(api_key=api_key)
                                     prompt = f"""這是一段財經 YouTube 節目的完整字幕。請幫我過濾閒聊，用專業的「繁體中文」條列整理：
                                     1. 🌍 宏觀經濟與大盤觀點 
@@ -160,9 +153,14 @@ with tab2:
                                     res = genai.GenerativeModel('gemini-2.5-flash').generate_content(prompt)
                                     st.success("✅ 重點提煉完成！")
                                     st.write(res.text)
-                            else: st.error("❌ 這部影片沒有任何字幕檔 (CC)，請改用 Facebook 貼文模式。")
-                        except Exception as e: st.error("❌ 無法抓取這部影片，影片可能受保護或無字幕。")
-                else: st.error("❌ 網址格式錯誤。")
+                            else: 
+                                st.error("❌ 找不到任何語言的字幕。")
+                        except Exception as e: 
+                            # 把真實的 YouTube 阻擋原因印出來
+                            st.error(f"❌ 抓取失敗！YouTube 伺服器阻擋或發生錯誤。\n\n**詳細技術原因：** `{str(e)}`")
+                            st.info("💡 提示：Streamlit 雲端主機有時會被 YouTube 暫時封鎖 IP。如果持續發生，建議先改用下方的「Facebook 貼文提煉」功能，把 KOL 的節目筆記貼上來分析！")
+                else: 
+                    st.error("❌ 網址格式錯誤。")
     else:
         fb_post = st.text_area("📝 請貼上 Facebook 長篇貼文內容：", height=200)
         if st.button("🎯 分析貼文重點"):
@@ -172,7 +170,7 @@ with tab2:
                     res = genai.GenerativeModel('gemini-2.5-flash').generate_content(f"請精煉貼文投資價值：1.核心觀點 2.數據支持與邏輯 3.提到的標的 4.結論\n\n{fb_post}")
                     st.write(res.text)
 
-# 【分頁 3】全市場即時儀表板 (雙引擎)
+# 【分頁 3】全市場即時儀表板
 with tab3:
     st.subheader("🪙 全市場即時儀表板 (Crypto & 美股)")
     st.caption("⏱️ 雙引擎運作中：系統將每 30 秒自動為您抓取最新報價...")
@@ -219,10 +217,9 @@ with tab4:
         if memory_tickers[selected_memory] in res_dict:
             st.metric(label=f"{selected_memory} 最新報價", value=f"{res_dict[memory_tickers[selected_memory]]['price']:.2f}")
 
-# 【分頁 5】投資計畫與超級複利試算機 (完整版回歸)
+# 【分頁 5】投資計畫與超級複利試算機
 with tab5:
     st.subheader("⭐ 長期投資計畫與超級複利試算機")
-    st.info("透過設定每月投入與預估年化報酬，推算未來的資產成長軌跡！")
     
     live_qqqm = 0.0
     live_tw = 0.0
@@ -236,7 +233,6 @@ with tab5:
         except: pass
 
     if live_qqqm and live_tw:
-        # 1. 現值計算
         st.markdown("### 1️⃣ 目前資產現值")
         col_inv1, col_inv2 = st.columns(2)
         with col_inv1:
@@ -254,7 +250,6 @@ with tab5:
 
         st.divider()
 
-        # 2. 未來複利推算
         st.markdown("### 2️⃣ 🚀 未來複利推算 (定期定額)")
         invest_years = st.slider("預計投資年限 (年)：", min_value=1, max_value=40, value=20)
         
@@ -263,22 +258,17 @@ with tab5:
             st.markdown("#### 🇺🇸 QQQM 計畫")
             qqqm_monthly = st.number_input("每月投入 (USD)：", min_value=0, value=40, step=10)
             qqqm_rate = st.number_input("QQQM 預估年化報酬率 (%)：", min_value=1.0, value=10.0, step=0.5)
-
         with col_calc2:
             st.markdown("#### 🇹🇼 009816 計畫")
             tw_monthly = st.number_input("每月投入 (TWD)：", min_value=0, value=24375, step=1000)
             tw_rate = st.number_input("009816 預估年化報酬率 (%)：", min_value=1.0, value=8.0, step=0.5)
 
-        # 複利計算邏輯 (按月)
         months = invest_years * 12
-
-        # QQQM 計算
         qqqm_m_rate = (qqqm_rate / 100) / 12
         qqqm_fv_present = qqqm_current_usd * ((1 + qqqm_m_rate) ** months)
         qqqm_fv_future = qqqm_monthly * (((1 + qqqm_m_rate) ** months - 1) / qqqm_m_rate) if qqqm_m_rate > 0 else qqqm_monthly * months
         qqqm_total_fv_usd = qqqm_fv_present + qqqm_fv_future
 
-        # 009816 計算
         tw_m_rate = (tw_rate / 100) / 12
         tw_fv_present = tw_current_twd * ((1 + tw_m_rate) ** months)
         tw_fv_future = tw_monthly * (((1 + tw_m_rate) ** months - 1) / tw_m_rate) if tw_m_rate > 0 else tw_monthly * months
@@ -295,5 +285,3 @@ with tab5:
             st.write(f"- **009816 未來總價值**：NT$ {tw_total_fv_twd:,.0f}")
             profit = total_future_twd - total_invested_twd
             st.write(f"- **時間創造的複利淨收益**：NT$ {profit:,.0f}")
-    else:
-        st.warning("無法取得試算價格，請稍後再試。")
