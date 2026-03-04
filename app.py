@@ -5,7 +5,7 @@ import urllib.parse
 import google.generativeai as genai
 import threading 
 from youtube_transcript_api import YouTubeTranscriptApi
-import pandas as pd # 新增：強大的數據表格套件
+import pandas as pd
 
 # --- 1. 新聞抓取模組 ---
 def get_google_news(query):
@@ -24,7 +24,7 @@ def get_google_news(query):
         return news_list
     except: return None
 
-# --- Yahoo 抓取神技 (單一與多執行緒) ---
+# --- Yahoo 抓取神技 (進階版：抓取精準備前收盤價以計算今日損益) ---
 def fetch_yahoo_single(sym, result_dict):
     url = f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}?range=5d&interval=1d"
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -34,9 +34,13 @@ def fetch_yahoo_single(sym, result_dict):
         closes = data['chart']['result'][0]['indicators']['quote'][0]['close']
         valid = [p for p in closes if p is not None]
         if len(valid) >= 2:
-            result_dict[sym] = {'price': valid[-1], 'change': ((valid[-1] - valid[-2]) / valid[-2]) * 100}
+            price = valid[-1]
+            prev = valid[-2]
+            change_amt = price - prev
+            change_pct = (change_amt / prev) * 100
+            result_dict[sym] = {'price': price, 'change_amt': change_amt, 'change_pct': change_pct}
         elif len(valid) == 1:
-            result_dict[sym] = {'price': valid[0], 'change': 0.0}
+            result_dict[sym] = {'price': valid[0], 'change_amt': 0.0, 'change_pct': 0.0}
     except: pass 
 
 def get_yahoo_bulk_threaded(symbols_list):
@@ -68,11 +72,158 @@ api_key = st.sidebar.text_input("輸入 Gemini API Key (啟動 AI):", type="pass
 
 # --- 3. 建立 7 大分頁 ---
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "📖 SA 助理", "🎧 KOL 提煉", "💼 資產總覽", "🪙 全市場儀表板", "💾 記憶體產業", "⭐ 投資與試算", "📰 產業新聞"
+    "💼 個人資產總覽", "📖 SA 助理", "🎧 KOL 提煉", "🪙 全市場儀表板", "💾 記憶體產業", "⭐ 投資與試算", "📰 產業新聞"
 ])
 
-# 【分頁 1】Seeking Alpha AI 專業助理
+# 【分頁 1】💼 全新進化的 SA 格式資產總覽
 with tab1:
+    st.subheader("💼 個人資產動態管理中心")
+    
+    # 預設資料表
+    if 'portfolio_df' not in st.session_state:
+        st.session_state.portfolio_df = pd.DataFrame({
+            '市場分類': ['美股', '美股', '台股', '台股'],
+            '標的代號': ['QQQ', 'QQQM', '009816.TW', '3324.TW'],
+            '持有股數': [0.0, 0.0, 0.0, 0.0],
+            '平均成本': [0.0, 0.0, 0.0, 0.0]
+        })
+    
+    with st.expander("✏️ 點此修改持股資料 (數量與成本)", expanded=False):
+        st.info("💡 提示：在表格內直接修改數字。若要新增標的，點擊最下方空白列輸入即可。")
+        edited_df = st.data_editor(
+            st.session_state.portfolio_df, 
+            num_rows="dynamic",
+            use_container_width=True,
+            column_config={
+                "市場分類": st.column_config.SelectboxColumn("市場分類", options=["美股", "台股", "加密貨幣"], required=True),
+                "標的代號": st.column_config.TextColumn("標的代號 (Symbol)"),
+                "持有股數": st.column_config.NumberColumn("持有股數 (Shares)", format="%.4f"),
+                "平均成本": st.column_config.NumberColumn("平均成本 (Cost)", format="%.2f")
+            }
+        )
+        st.session_state.portfolio_df = edited_df
+
+    st.markdown("---")
+    
+    col_rate, col_btn, col_empty = st.columns([1, 1, 2])
+    with col_rate:
+        usd_to_twd = st.number_input("💵 目前美金兌台幣匯率：", value=32.5, step=0.1)
+    with col_btn:
+        st.write("")
+        st.write("")
+        calculate_btn = st.button("🔄 產生專業持股報表", type="primary", use_container_width=True)
+
+    if calculate_btn:
+        with st.spinner("🌍 正在全網抓取最新報價，生成分析報表中..."):
+            yahoo_symbols = edited_df[edited_df['市場分類'].isin(['美股', '台股'])]['標的代號'].tolist()
+            yahoo_prices = get_yahoo_bulk_threaded(yahoo_symbols)
+            
+            pionex_prices = {}
+            try:
+                res = requests.get("https://api.pionex.com/api/v1/market/tickers", timeout=5)
+                for t in res.json().get('data', {}).get('tickers', []):
+                    # 推算加密貨幣的漲跌金額
+                    close_px = float(t['close'])
+                    chg_pct = float(t['change24h'])
+                    prev_px = close_px / (1 + chg_pct) if (1 + chg_pct) != 0 else close_px
+                    pionex_prices[t['symbol']] = {'price': close_px, 'change_amt': close_px - prev_px, 'change_pct': chg_pct * 100}
+            except: pass
+
+            portfolio_data = []
+            total_invested_twd = 0.0
+            total_value_twd = 0.0
+            total_today_gain_twd = 0.0
+            
+            # 第一階段：計算所有個股市值以換算權重
+            for index, row in edited_df.iterrows():
+                market = row['市場分類']
+                sym = row['標的代號']
+                shares = float(row['持有股數']) if pd.notna(row['持有股數']) else 0.0
+                cost = float(row['平均成本']) if pd.notna(row['平均成本']) else 0.0
+                
+                if not sym or shares == 0: continue
+                
+                market_data = pionex_prices.get(sym, {'price':0, 'change_amt':0, 'change_pct':0}) if market == '加密貨幣' else yahoo_prices.get(sym, {'price':0, 'change_amt':0, 'change_pct':0})
+                
+                live_price = market_data['price']
+                change_amt = market_data['change_amt']
+                change_pct = market_data['change_pct']
+                
+                invested = shares * cost
+                current_val = shares * live_price
+                today_gain = shares * change_amt
+                total_gain = current_val - invested
+                total_gain_pct = (total_gain / invested * 100) if invested > 0 else 0.0
+                
+                multiplier = usd_to_twd if market in ['美股', '加密貨幣'] else 1.0
+                
+                total_invested_twd += (invested * multiplier)
+                total_value_twd += (current_val * multiplier)
+                total_today_gain_twd += (today_gain * multiplier)
+                
+                portfolio_data.append({
+                    "Symbol": sym,
+                    "Price": live_price,
+                    "Change": change_amt,
+                    "Change %": change_pct,
+                    "Shares": shares,
+                    "Cost": cost,
+                    "Today's Gain": today_gain,
+                    "Today's %": change_pct, # 今日漲跌幅等同今日獲利率
+                    "Total Change": total_gain,
+                    "Total % Change": total_gain_pct,
+                    "Value": current_val,
+                    "_multiplier": multiplier # 隱藏欄位用於計算權重
+                })
+
+            if portfolio_data:
+                # 建立頂部數據總結 (模仿 SA 介面)
+                total_change_twd = total_value_twd - total_invested_twd
+                total_change_pct = (total_change_twd / total_invested_twd * 100) if total_invested_twd > 0 else 0.0
+                today_gain_pct = (total_today_gain_twd / (total_value_twd - total_today_gain_twd) * 100) if (total_value_twd - total_today_gain_twd) > 0 else 0.0
+                
+                # 總結大標題
+                st.markdown(f"### 👁 NT$ {total_value_twd:,.0f} &nbsp;&nbsp; <span style='color:{'#00d26a' if total_change_twd >= 0 else '#f6465d'}; font-size:24px;'>{'↗' if total_change_twd >= 0 else '↘'} {total_change_twd:+,.0f} ({total_change_pct:+.2f}%) 總未實現</span>", unsafe_allow_html=True)
+                
+                # 計算權重並格式化字串以備渲染
+                display_list = []
+                for item in portfolio_data:
+                    w = ((item['Value'] * item['_multiplier']) / total_value_twd * 100) if total_value_twd > 0 else 0.0
+                    display_list.append({
+                        "Symbol": item['Symbol'],
+                        "Price": f"{item['Price']:,.2f}",
+                        "Change": f"{item['Change']:+.2f}",
+                        "Change %": f"{item['Change %']:+.2f}%",
+                        "Weight": f"{w:.1f}%",
+                        "Shares": f"{item['Shares']:,.2f}",
+                        "Cost": f"{item['Cost']:,.2f}",
+                        "Today's Gain": f"{item['Today\'s Gain']:+.2f}",
+                        "Today's % Gain": f"{item['Today\'s %']:+.2f}%",
+                        "Total Change": f"{item['Total Change']:+.2f}",
+                        "Total % Change": f"{item['Total % Change']:+.2f}%",
+                        "Value": f"{item['Value']:,.2f}"
+                    })
+                
+                df_display = pd.DataFrame(display_list)
+                
+                # 套用綠漲紅跌的 CSS 渲染引擎
+                def color_positive_negative(val):
+                    if isinstance(val, str):
+                        if val.startswith('+'): return 'color: #00d26a; font-weight: bold;'
+                        if val.startswith('-'): return 'color: #f6465d; font-weight: bold;'
+                    return ''
+                
+                styled_df = df_display.style.map(
+                    color_positive_negative, 
+                    subset=["Change", "Change %", "Today's Gain", "Today's % Gain", "Total Change", "Total % Change"]
+                )
+                
+                st.dataframe(styled_df, use_container_width=True, hide_index=True)
+            else:
+                st.warning("請先在上方展開並填寫持股數量與成本。")
+
+# 【分頁 2】Seeking Alpha AI 專業助理
+with tab2:
     st.subheader("📖 Seeking Alpha AI 專業閱讀助理")
     col_sa1, col_sa2 = st.columns([2, 1])
     with col_sa2:
@@ -89,27 +240,18 @@ with tab1:
                 try:
                     genai.configure(api_key=api_key)
                     focus_prompt = ""
-                    if focus_area == "偏重看多與護城河分析": focus_prompt = "請特別深度挖掘文章中看好該公司的理由、競爭優勢（護城河）以及未來的潛在催化劑。"
-                    elif focus_area == "偏重看空與財報風險預警": focus_prompt = "請特別深度挖掘文章中提到的潛在風險、財報隱憂、總體經濟的不利因素或競爭劣勢。"
+                    if focus_area == "偏重看多與護城河分析": focus_prompt = "請深度挖掘看好該公司的理由、競爭優勢。"
+                    elif focus_area == "偏重看空與財報風險預警": focus_prompt = "請深度挖掘潛在風險、財報隱憂或劣勢。"
                     else: focus_prompt = "請客觀平衡地呈現文章的多空觀點。"
 
-                    sa_prompt = f"""
-                    你現在是一位專業的華爾街首席分析師。請幫我閱讀以下這篇 Seeking Alpha 的分析文章，
-                    並以「繁體中文」輸出以下結構化的重點整理：
-                    {focus_prompt}
-                    1. 🎯 【核心觀點】
-                    2. 🐂 【看多論點與護城河】
-                    3. 🐻 【看空論點與風險】
-                    4. 💡 【關鍵數據與催化劑】
-                    文章內容如下：\n{sa_article}
-                    """
+                    sa_prompt = f"""請以「繁體中文」輸出以下結構化的重點整理：\n{focus_prompt}\n1. 🎯 【核心觀點】\n2. 🐂 【看多論點與護城河】\n3. 🐻 【看空論點與風險】\n4. 💡 【關鍵數據與催化劑】\n文章內容如下：\n{sa_article}"""
                     res = genai.GenerativeModel('gemini-2.5-flash').generate_content(sa_prompt)
                     st.success(f"✅ 解析完成！(模式：{focus_area})")
                     st.write(res.text)
                 except Exception as e: st.error(f"❌ AI 解析失敗：{e}")
 
-# 【分頁 2】財經 KOL 影音/貼文提煉引擎
-with tab2:
+# 【分頁 3】財經 KOL 影音/貼文提煉引擎
+with tab3:
     st.subheader("🎧 財經 KOL 重點提煉引擎")
     source_type = st.radio("請選擇您要提煉的資訊來源：", ["🎥 YouTube 影片網址 (自動擷取字幕)", "📝 Facebook 貼文 (手動複製貼上)"])
     
@@ -121,7 +263,7 @@ with tab2:
             else:
                 video_id = get_yt_video_id(yt_url)
                 if video_id:
-                    with st.spinner("🕵️‍♂️ 正在掃描所有可用字幕..."):
+                    with st.spinner("🕵️‍♂️ 正在掃描可用字幕..."):
                         try:
                             transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
                             transcript = None
@@ -149,108 +291,6 @@ with tab2:
                     genai.configure(api_key=api_key)
                     res = genai.GenerativeModel('gemini-2.5-flash').generate_content(f"請精煉貼文：1.核心觀點 2.數據與邏輯 3.提到標的 4.結論\n\n{fb_post}")
                     st.write(res.text)
-
-# 【分頁 3】全新：個人資產總覽與動態管理
-with tab3:
-    st.subheader("💼 個人資產動態管理中心")
-    st.markdown("在這裡建立你的投資組合！你可以隨時點擊表格修改「代號」、「數量」與「成本」，系統會自動為你抓取最新市價並結算總資產。")
-    
-    # 建立一個儲存在雲端網頁暫存中的資料表 (Session State)
-    if 'portfolio_df' not in st.session_state:
-        st.session_state.portfolio_df = pd.DataFrame({
-            '市場分類': ['加密貨幣', '美股', '美股', '台股', '台股', '美股'],
-            '標的代號': ['BTC_USDT', 'QQQ', 'QQQM', '009816.TW', '3324.TW', 'WLDN'],
-            '持有數量': [0.00, 0.0, 0.0, 0.0, 0.0, 0.0],
-            '平均成本': [0.00, 0.0, 0.0, 0.0, 0.0, 0.0]
-        })
-    
-    st.info("💡 **操作提示**：點擊下方表格的數字即可直接修改。如果要新增一筆，點擊表格最下方的空白列即可輸入。")
-    
-    # 使用可編輯資料表
-    edited_df = st.data_editor(
-        st.session_state.portfolio_df, 
-        num_rows="dynamic", # 允許使用者隨時新增或刪除橫列
-        use_container_width=True,
-        column_config={
-            "市場分類": st.column_config.SelectboxColumn("市場分類", options=["美股", "台股", "加密貨幣"], required=True),
-            "標的代號": st.column_config.TextColumn("標的代號 (請務必輸入正確)"),
-            "持有數量": st.column_config.NumberColumn("持有數量", format="%.4f"),
-            "平均成本": st.column_config.NumberColumn("平均成本", format="%.2f")
-        }
-    )
-    # 把編輯後的資料存回系統
-    st.session_state.portfolio_df = edited_df
-
-    st.divider()
-    
-    col_rate, col_btn = st.columns([1, 2])
-    with col_rate:
-        usd_to_twd = st.number_input("💵 目前美金兌台幣匯率：", value=32.5, step=0.1)
-    with col_btn:
-        st.write("") # 排版用空白
-        st.write("")
-        calculate_btn = st.button("🔄 抓取最新市價並結算總資產", type="primary", use_container_width=True)
-
-    if calculate_btn:
-        with st.spinner("🌍 正在全網抓取您持有標的的最新報價..."):
-            result_data = []
-            total_invested_twd = 0.0
-            total_current_twd = 0.0
-            
-            # 準備抓取資料
-            yahoo_symbols = edited_df[edited_df['市場分類'].isin(['美股', '台股'])]['標的代號'].tolist()
-            yahoo_prices = get_yahoo_bulk_threaded(yahoo_symbols)
-            
-            pionex_prices = {}
-            try:
-                res = requests.get("https://api.pionex.com/api/v1/market/tickers", timeout=5)
-                for t in res.json().get('data', {}).get('tickers', []):
-                    pionex_prices[t['symbol']] = float(t['close'])
-            except: pass
-
-            # 開始結算每一列
-            for index, row in edited_df.iterrows():
-                market = row['市場分類']
-                sym = row['標的代號']
-                shares = float(row['持有數量']) if pd.notna(row['持有數量']) else 0.0
-                cost = float(row['平均成本']) if pd.notna(row['平均成本']) else 0.0
-                
-                if not sym or shares == 0: continue
-                
-                live_price = 0.0
-                if market == '加密貨幣': live_price = pionex_prices.get(sym, 0.0)
-                else: live_price = yahoo_prices.get(sym, {}).get('price', 0.0)
-                
-                # 計算單一標的價值
-                invested = shares * cost
-                current_val = shares * live_price
-                roi = ((current_val - invested) / invested * 100) if invested > 0 else 0.0
-                
-                # 統一換算成台幣以計算總和
-                multiplier = usd_to_twd if market in ['美股', '加密貨幣'] else 1.0
-                total_invested_twd += (invested * multiplier)
-                total_current_twd += (current_val * multiplier)
-                
-                result_data.append({
-                    "標的": sym,
-                    "市價": f"{live_price:,.2f}",
-                    "總投入": f"{invested:,.2f}",
-                    "目前總值": f"{current_val:,.2f}",
-                    "報酬率": f"{roi:+.2f}%"
-                })
-
-            if result_data:
-                st.markdown("### 📊 您的資產結算明細")
-                st.table(pd.DataFrame(result_data))
-                
-                st.divider()
-                profit_twd = total_current_twd - total_invested_twd
-                st.success(f"### 💰 預估總資產淨值：NT$ {total_current_twd:,.0f}")
-                
-                if profit_twd >= 0: st.info(f"📈 總未實現損益：+ NT$ {profit_twd:,.0f}")
-                else: st.error(f"📉 總未實現損益：- NT$ {abs(profit_twd):,.0f}")
-            else:
-                st.warning("您目前持有的數量皆為 0，請先在上方表格填寫資產數字！")
 
 # 【分頁 4】全市場即時儀表板
 with tab4:
@@ -312,9 +352,9 @@ with tab6:
     if live_qqqm and live_tw:
         col_inv1, col_inv2 = st.columns(2)
         with col_inv1:
-            qqqm_shares = st.number_input("持有 QQQM 股數：", value=0.0, step=0.1)
+            qqqm_shares = st.number_input("持有 QQQM 股數 (試算用)：", value=0.0, step=0.1)
         with col_inv2:
-            tw_shares = st.number_input("持有 009816 股數：", value=0.0, step=1.0)
+            tw_shares = st.number_input("持有 009816 股數 (試算用)：", value=0.0, step=1.0)
         exchange_rate = st.number_input("美金匯率：", value=32.5)
         
         invest_years = st.slider("預計投資年限 (年)：", 1, 40, 20)

@@ -3,3 +3,4 @@ requests
 google-generativeai
 youtube-transcript-api
 pandas
+jinja2
