@@ -1,3 +1,4 @@
 streamlit
 requests
 google-generativeai
+youtube-transcript-api
