@@ -65,7 +65,7 @@ st.sidebar.header("⚙️ 系統設定")
 api_key = st.sidebar.text_input("輸入你的 Gemini API Key (用於啟動 AI):", type="password").strip()
 
 st.header("📊 即時市場數據")
-tab1, tab2, tab3 = st.tabs(["🪙 全市場儀表板 (雙引擎)", "💾 記憶體產業", "⭐ 投資計畫與試算"])
+tab1, tab2, tab3, tab4 = st.tabs(["🪙 全市場儀表板", "💾 記憶體產業", "⭐ 投資計畫與試算", "📖 SA 閱讀助理"])
 
 # 【分頁 1】混合雙引擎全市場儀表板
 with tab1:
@@ -269,3 +269,48 @@ if st.button("取得最新消息與 AI 總結"):
                     except Exception as e: st.error(f"❌ AI 錯誤：{e}")
             else: st.warning("⚠️ 請輸入 Gemini API Key！")
         else: st.error("❌ 抓取失敗。")
+# 【分頁 4】Seeking Alpha 專屬 AI 閱讀助理
+with tab4:
+    st.subheader("📖 Seeking Alpha 專屬閱讀助理")
+    st.info("💡 閱讀提速技巧：將長篇英文分析文章貼在下方，AI 將瞬間為您拆解多空邏輯並翻譯為繁體中文。")
+    
+    # 建立一個超大的文字輸入框，讓你可以貼上整篇文章
+    sa_article = st.text_area("請在此貼上 Seeking Alpha 文章內容：", height=250)
+    
+    if st.button("🚀 AI 深度解析文章"):
+        if not api_key:
+            st.warning("⚠️ 請先在左側系統設定輸入您的 Gemini API Key！")
+        elif not sa_article.strip():
+            st.warning("⚠️ 請先貼上文章內容！")
+        else:
+            with st.spinner("🤖 華爾街 AI 助教正在閱讀長篇文章，請稍候..."):
+                try:
+                    # 設定 AI
+                    genai.configure(api_key=api_key)
+                    model = genai.GenerativeModel('gemini-2.5-flash')
+                    
+                    # 這是專為 Seeking Alpha 設計的終極提示詞 (Prompt)
+                    sa_prompt = f"""
+                    你現在是一位專業的華爾街首席分析師。請幫我閱讀以下這篇 Seeking Alpha 的分析文章，
+                    並以「繁體中文」輸出以下結構化的重點整理，幫助我大幅提升閱讀速度與決策效率：
+
+                    1. 🎯 【核心觀點】：用一句話總結作者對這檔標的的主要看法（強烈買進、持有、還是賣出？原因為何？）。
+                    2. 🐂 【看多論點】：條列式列出作者認為會上漲的理由、護城河或優勢。
+                    3. 🐻 【看空論點與風險】：條列式列出作者提到的隱憂、財報弱點或宏觀風險。
+                    4. 💡 【關鍵數據與催化劑】：列出文章中提到的重要財報數據（如 EPS、營收成長率、P/E Ratio）或即將發生的關鍵事件。
+
+                    文章內容如下：
+                    {sa_article}
+                    """
+                    
+                    # 呼叫 AI 產生分析
+                    response = model.generate_content(sa_prompt)
+                    
+                    # 顯示完美排版後的結果
+                    st.success("✅ 解析完成！")
+                    st.markdown("---")
+                    st.write(response.text)
+                    st.markdown("---")
+                    
+                except Exception as e:
+                    st.error(f"❌ AI 解析失敗，可能是文章太長超過限制或連線問題。錯誤訊息：{e}")
