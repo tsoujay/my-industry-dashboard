@@ -23,10 +23,9 @@ def get_google_news(query):
     except Exception:
         return None
 
-# --- 新增：直連 Yahoo 底層的報價神技 (繞過阻擋) ---
+# --- 直連 Yahoo 底層的報價神技 ---
 def get_yahoo_price(symbol):
     url = f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?range=5d&interval=1d"
-    # 這段 Header 就是關鍵！讓 Yahoo 以為我們是正常的 Chrome 瀏覽器
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
@@ -34,15 +33,10 @@ def get_yahoo_price(symbol):
         res = requests.get(url, headers=headers)
         res.raise_for_status()
         data = res.json()
-        
-        # 潛入 JSON 資料庫深處，把每天的收盤價挖出來
         closes = data['chart']['result'][0]['indicators']['quote'][0]['close']
-        
-        # 過濾掉那些因為沒開盤而產生空值 (None) 的日子
         valid_prices = [p for p in closes if p is not None]
-        
         if valid_prices:
-            return valid_prices[-1] # 回傳最後一天的最新價格
+            return valid_prices[-1]
         return None
     except Exception as e:
         raise Exception(f"Yahoo 伺服器拒絕連線或代號錯誤 ({e})")
@@ -58,19 +52,15 @@ st.sidebar.caption("※ 貼上後請按 Enter 鍵確認。")
 # --- 3. 多重即時數據區塊 ---
 st.header("📊 即時市場數據")
 
-tab1, tab2, tab3 = st.tabs(["🪙 加密貨幣 (Pionex)", "💾 記憶體產業 (Yahoo)", "⭐ 個人關注清單"])
+tab1, tab2, tab3 = st.tabs(["🪙 加密貨幣與美股代幣 (Pionex)", "💾 記憶體產業 (Yahoo)", "⭐ 投資計畫與試算"])
 
-# 【分頁 1】加密貨幣區塊 (升級為儀表板模式)
+# 【分頁 1】加密貨幣與美股代幣區塊 (30秒自動更新)
 with tab1:
-    # 【分頁 1】加密貨幣區塊 (升級為自動更新儀表板)
-with tab1:
-    st.subheader("🪙 加密貨幣即時儀表板")
+    st.subheader("🪙 Pionex 全市場即時儀表板")
     st.caption("⏱️ 系統將每 30 秒自動在背景為您抓取最新報價...")
     
-    # 🌟 魔法指令：告訴系統「這個函數裡面的東西」要每 30 秒自己重跑一次
     @st.fragment(run_every="30s")
     def auto_refresh_crypto():
-        col1, col2, col3 = st.columns(3)
         try:
             url = "https://api.pionex.com/api/v1/market/tickers"
             response = requests.get(url)
@@ -83,46 +73,41 @@ with tab1:
                 if crypto:
                     price = float(crypto.get('close', 0))
                     change = float(crypto.get('change24h', 0)) * 100
-                    col.metric(label, f"${price:,.2f}", f"{change:.2f}%")
+                    col.metric(label, f"${price:,.4f}" if price < 1 else f"${price:,.2f}", f"{change:.2f}%")
                 else:
-                    col.warning(f"找不到 {symbol_name}")
+                    col.warning(f"無 {symbol_name}")
 
-            display_crypto_metric(col1, "Bitcoin (BTC)", "BTC_USDT")
-            display_crypto_metric(col2, "Ethereum (ETH)", "ETH_USDT")
-            display_crypto_metric(col3, "Solana (SOL)", "SOL_USDT")
+            # 主流加密貨幣
+            st.markdown("**🌟 主流加密貨幣**")
+            c1, c2, c3 = st.columns(3)
+            display_crypto_metric(c1, "Bitcoin (BTC)", "BTC_USDT")
+            display_crypto_metric(c2, "Ethereum (ETH)", "ETH_USDT")
+            display_crypto_metric(c3, "Cardano (ADA)", "ADA_USDT")
+            
+            # 黃金與白銀代幣
+            st.markdown("**🌟 貴金屬代幣**")
+            c4, c5, c6 = st.columns(3)
+            display_crypto_metric(c4, "Pax Gold (PAXG)", "PAXG_USDT")
+            display_crypto_metric(c5, "Tether Gold (XAUT)", "XAUT_USDT")
+            display_crypto_metric(c6, "Silver (XAG 等效)", "XAG_USDT") # 若派網未上架白銀會顯示警告
+            
+            # 美股代幣 (24小時交易)
+            st.markdown("**🌟 熱門美股代幣 (24H)**")
+            c7, c8, c9 = st.columns(3)
+            display_crypto_metric(c7, "Tesla (TSLAX)", "TSLAX_USDT")
+            display_crypto_metric(c8, "Nvidia (NVDAX)", "NVDAX_USDT")
+            display_crypto_metric(c9, "TSMC (TSMX)", "TSMX_USDT")
+            
+            c10, c11, c12 = st.columns(3)
+            display_crypto_metric(c10, "Apple (AAPLX)", "AAPLX_USDT")
+            display_crypto_metric(c11, "Microsoft (MSFTX)", "MSFTX_USDT")
+            display_crypto_metric(c12, "Coinbase (COINX)", "COINX_USDT")
             
         except Exception as e:
             st.error(f"儀表板更新失敗，原因：{e}")
             
-    # 啟動自動更新函數
     auto_refresh_crypto()
-    
-    st.divider()
-    
-    # --- 原本的單一幣種查詢功能保留 ---
-    st.caption("🔍 查詢其他特定幣種：")
-    crypto_tickers = {
-        "狗狗幣 (DOGE)": "DOGE_USDT",
-        "瑞波幣 (XRP)": "XRP_USDT",
-        "艾達幣 (ADA)": "ADA_USDT"
-    }
-    selected_crypto = st.selectbox("選擇加密貨幣：", list(crypto_tickers.keys()))
-    
-    if st.button("手動取得報價"):
-        symbol = crypto_tickers[selected_crypto]
-        with st.spinner(f"連線至 Pionex 抓取中..."):
-            try:
-                url = f"https://api.pionex.com/api/v1/market/tickers?symbol={symbol}"
-                response = requests.get(url)
-                response.raise_for_status() 
-                data = response.json()
-                if data.get("data") and data["data"].get("tickers"):
-                    current_price = float(data["data"]["tickers"][0]["close"])
-                    st.metric(label=f"{selected_crypto} 最新價格 (USDT)", value=f"{current_price:,.4f}")
-                else:
-                    st.warning("⚠️ 系統回傳空白資料。")
-            except Exception as e:
-                st.error(f"❌ 報價抓取失敗：{e}")
+
 # 【分頁 2】記憶體產業區塊
 with tab2:
     st.subheader("記憶體大廠指標股")
@@ -137,7 +122,7 @@ with tab2:
     
     if st.button("取得記憶體指標報價"):
         symbol = memory_tickers[selected_memory]
-        with st.spinner("偽裝瀏覽器連線至 Yahoo 抓取中..."):
+        with st.spinner("連線至 Yahoo 抓取中..."):
             try:
                 current_price = get_yahoo_price(symbol)
                 if current_price:
@@ -147,34 +132,51 @@ with tab2:
             except Exception as e:
                 st.error(f"❌ 報價抓取失敗：{e}")
 
-# 【分頁 3】個人關注清單區塊
+# 【分頁 3】投資計畫與資產試算 (009816 & QQQM)
 with tab3:
-    st.subheader("常用關注標的")
-    watchlist_tickers = {
-        "那斯達克 100 ETF": "QQQ",
-        "那斯達克 100 迷你 ETF": "QQQM",
-        "雙鴻 (散熱模組)": "3324.TW",
-        "Willdan Group (能源基建)": "WLDN"
-    }
-    selected_watch = st.selectbox("選擇關注標的：", list(watchlist_tickers.keys()))
+    st.subheader("⭐ 長期投資計畫與資產試算")
+    st.info("根據你的計畫：長期投資 QQQM (美股) 與 009816 (台股不配息市值型 ETF)")
     
-    if st.button("取得關注標的報價"):
-        symbol = watchlist_tickers[selected_watch]
-        with st.spinner("偽裝瀏覽器連線至 Yahoo 抓取中..."):
-            try:
-                current_price = get_yahoo_price(symbol)
-                if current_price:
-                    st.metric(label=f"{selected_watch} ({symbol}) 最新報價", value=f"{current_price:.2f}")
-                else:
-                    st.warning("⚠️ 查無有效報價，可能為非交易時間。")
-            except Exception as e:
-                st.error(f"❌ 報價抓取失敗：{e}")
+    live_qqqm_price = 0.0
+    live_009816_price = 0.0
+    
+    with st.spinner("正在更新試算匯率與價格..."):
+        try:
+            live_qqqm_price = get_yahoo_price("QQQM")
+            live_009816_price = get_yahoo_price("009816.TW")
+        except:
+            live_qqqm_price = 0.0
+            live_009816_price = 0.0
+
+    if live_qqqm_price and live_009816_price:
+        col_inv1, col_inv2 = st.columns(2)
+        
+        with col_inv1:
+            qqqm_shares = st.number_input("目前持有 QQQM 股數：", min_value=0.0, value=0.0, step=0.1)
+            qqqm_value_usd = qqqm_shares * live_qqqm_price
+            st.write(f"現值：**${qqqm_value_usd:,.2f}** USD")
+            
+        with col_inv2:
+            tw_shares = st.number_input("目前持有 009816 股數：", min_value=0.0, value=0.0, step=1.0)
+            tw_value_twd = tw_shares * live_009816_price
+            st.write(f"現值：**NT$ {tw_value_twd:,.0f}**")
+            
+        st.divider()
+        # 假設匯率 32.5 進行加總計算
+        exchange_rate = 32.5
+        total_twd = (qqqm_value_usd * exchange_rate) + tw_value_twd
+        total_usd = qqqm_value_usd + (tw_value_twd / exchange_rate)
+        
+        st.success(f"### 總資產估值：**NT$ {total_twd:,.0f}**")
+        st.caption(f"折合美金約：$ {total_usd:,.2f} USD (以匯率 {exchange_rate} 估算)")
+    else:
+        st.warning("暫時無法取得試算價格，請確認網路連線或稍後再試。")
 
 st.divider()
 
 # --- 4. 產業新聞與 AI 總結區塊 ---
 st.header("📰 產業新聞與 AI 總結")
-search_query = st.text_input("請輸入你想查詢的產業或公司：", "例如：DRAM 記憶體 最新報價與趨勢")
+search_query = st.text_input("請輸入你想查詢的產業或公司：", "例如：009816 凱基台灣 表現")
 
 if st.button("取得最新消息與 AI 總結"):
     with st.spinner(f"正在為您抓取「{search_query}」的最新新聞..."):
