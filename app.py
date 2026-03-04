@@ -3,6 +3,7 @@ import requests
 import xml.etree.ElementTree as ET
 import urllib.parse
 import google.generativeai as genai
+import threading # 導入多執行緒模組 (影分身之術)
 
 # --- 1. 新聞抓取模組 ---
 def get_google_news(query):
@@ -23,38 +24,46 @@ def get_google_news(query):
     except Exception:
         return None
 
-# --- 2. 舊版單一 Yahoo 報價 (保留給其他分頁使用) ---
-def get_yahoo_price(symbol):
-    url = f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?range=5d&interval=1d"
-    headers = {"User-Agent": "Mozilla/5.0"}
+# --- 新增：Yahoo 單一神技 (帶入漲跌幅計算) ---
+def fetch_yahoo_single(sym, result_dict):
+    # 使用 v8 通道，這是我們之前測試過最不容易被雲端封鎖的底層通道
+    url = f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}?range=5d&interval=1d"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
     try:
-        res = requests.get(url, headers=headers)
-        closes = res.json()['chart']['result'][0]['indicators']['quote'][0]['close']
-        valid = [p for p in closes if p is not None]
-        return valid[-1] if valid else None
-    except:
-        return None
-
-# --- 新增：超級批次 Yahoo 報價引擎 (一次抓 40 檔，速度極快) ---
-def get_yahoo_bulk(symbols_list):
-    if not symbols_list: return {}
-    symbols_str = ",".join(symbols_list)
-    url = f"https://query2.finance.yahoo.com/v7/finance/quote?symbols={symbols_str}"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    result = {}
-    try:
-        res = requests.get(url, headers=headers)
+        res = requests.get(url, headers=headers, timeout=5)
+        res.raise_for_status()
         data = res.json()
-        for item in data['quoteResponse']['result']:
-            sym = item['symbol']
-            price = item.get('regularMarketPrice', 0)
-            change = item.get('regularMarketChangePercent', 0)
-            result[sym] = {'price': price, 'change': change}
+        closes = data['chart']['result'][0]['indicators']['quote'][0]['close']
+        valid = [p for p in closes if p is not None]
+        if len(valid) >= 2:
+            price = valid[-1]
+            prev = valid[-2]
+            # 計算 24 小時漲跌幅
+            result_dict[sym] = {'price': price, 'change': ((price - prev) / prev) * 100}
+        elif len(valid) == 1:
+            result_dict[sym] = {'price': valid[0], 'change': 0.0}
     except:
-        pass
+        pass # 若抓取失敗則不寫入，UI 會自動顯示警告
+
+# --- 新增：多執行緒批次抓取 (同時派出多個機器人) ---
+def get_yahoo_bulk_threaded(symbols_list):
+    result = {}
+    threads = []
+    # 為每個股票代號建立一個獨立的抓取執行緒
+    for sym in symbols_list:
+        t = threading.Thread(target=fetch_yahoo_single, args=(sym, result))
+        threads.append(t)
+        t.start()
+    
+    # 等待所有機器人都抓完資料回來
+    for t in threads:
+        t.join()
+        
     return result
 
-# --- 3. 介面與設定 ---
+# --- 2. 介面與設定 ---
 st.set_page_config(page_title="即時產業問答中心", page_icon="📈", layout="wide")
 st.title("📈 我的即時產業問答中心")
 
@@ -69,12 +78,11 @@ with tab1:
     st.subheader("🪙 全市場即時儀表板 (Crypto & 美股)")
     st.caption("⏱️ 雙引擎運作中：系統將每 30 秒自動為您抓取最新報價...")
     
-    # 定義 Pionex 抓取的加密貨幣
     pionex_tokens = {
         "Bitcoin (BTC)": "BTC_USDT", "Ethereum (ETH)": "ETH_USDT", "Cardano (ADA)": "ADA_USDT"
     }
     
-    # 定義 Yahoo 抓取的真實美股與期貨 (將派網代幣對應到真實世界代號)
+    # 對應真實世界的美股與期貨代號
     yahoo_groups = {
         "💻 科技巨頭與半導體 (真實美股)": {
             "英偉達 (NVDA)": "NVDA", "特斯拉 (TSLA)": "TSLA", "蘋果 (AAPL)": "AAPL", 
@@ -104,10 +112,10 @@ with tab1:
 
     @st.fragment(run_every="30s")
     def auto_refresh_dual_engine():
-        # --- 1. Pionex 加密貨幣引擎 ---
+        # --- 引擎 A：Pionex ---
         pionex_data = {}
         try:
-            res = requests.get("https://api.pionex.com/api/v1/market/tickers")
+            res = requests.get("https://api.pionex.com/api/v1/market/tickers", timeout=5)
             for t in res.json().get('data', {}).get('tickers', []):
                 pionex_data[t['symbol']] = t
         except: pass
@@ -123,16 +131,14 @@ with tab1:
                 else:
                     cols[idx % 4].warning(f"無 {symbol}")
 
-        # --- 2. Yahoo 批次引擎 ---
-        # 收集所有需要抓取的 Yahoo 代號
+        # --- 引擎 B：Yahoo 多執行緒部隊 ---
         all_yahoo_symbols = []
         for group in yahoo_groups.values():
             all_yahoo_symbols.extend(group.values())
         
-        # 一次性發送請求抓回所有資料 (超快速)
-        yahoo_data = get_yahoo_bulk(all_yahoo_symbols)
+        # 啟動多執行緒同時抓取
+        yahoo_data = get_yahoo_bulk_threaded(all_yahoo_symbols)
 
-        # 顯示資料
         for group_name, tokens in yahoo_groups.items():
             expanded = True if "科技巨頭" in group_name else False
             with st.expander(f"{group_name} (來源：Yahoo實時)", expanded=expanded):
@@ -140,7 +146,9 @@ with tab1:
                 for idx, (label, symbol) in enumerate(tokens.items()):
                     stock = yahoo_data.get(symbol)
                     if stock and stock['price'] > 0:
-                        cols[idx % 4].metric(label, f"${stock['price']:,.2f}", f"{stock['change']:.2f}%")
+                        # 如果價格小於 1，顯示 4 位小數，否則顯示 2 位
+                        formatted_price = f"${stock['price']:,.4f}" if stock['price'] < 1 else f"${stock['price']:,.2f}"
+                        cols[idx % 4].metric(label, formatted_price, f"{stock['change']:.2f}%")
                     else:
                         cols[idx % 4].warning(f"無 {symbol}")
 
@@ -157,9 +165,12 @@ with tab2:
         symbol = memory_tickers[selected_memory]
         with st.spinner("連線至 Yahoo 抓取中..."):
             try:
-                current_price = get_yahoo_price(symbol)
-                if current_price: st.metric(label=f"{selected_memory} 最新報價", value=f"{current_price:.2f}")
-                else: st.warning("⚠️ 查無報價。")
+                res_dict = {}
+                fetch_yahoo_single(symbol, res_dict)
+                if symbol in res_dict: 
+                    st.metric(label=f"{selected_memory} 最新報價", value=f"{res_dict[symbol]['price']:.2f}")
+                else: 
+                    st.warning("⚠️ 查無有效報價，可能為非交易時間。")
             except Exception as e: st.error(f"❌ 抓取失敗：{e}")
 
 # 【分頁 3】投資計畫與資產試算 (009816 & QQQM)
@@ -171,8 +182,11 @@ with tab3:
     live_009816_price = 0.0
     with st.spinner("正在更新試算匯率與價格..."):
         try:
-            live_qqqm_price = get_yahoo_price("QQQM")
-            live_009816_price = get_yahoo_price("009816.TW")
+            res_dict = {}
+            fetch_yahoo_single("QQQM", res_dict)
+            fetch_yahoo_single("009816.TW", res_dict)
+            live_qqqm_price = res_dict.get("QQQM", {}).get("price", 0.0)
+            live_009816_price = res_dict.get("009816.TW", {}).get("price", 0.0)
         except: pass
 
     if live_qqqm_price and live_009816_price:
@@ -215,4 +229,4 @@ if st.button("取得最新消息與 AI 總結"):
                         st.write(res.text)
                     except Exception as e: st.error(f"❌ AI 錯誤：{e}")
             else: st.warning("⚠️ 請輸入 Gemini API Key！")
-        else: st.error("❌ 抓取失敗。") 
+        else: st.error("❌ 抓取失敗。")
