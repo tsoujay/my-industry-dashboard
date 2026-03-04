@@ -62,50 +62,67 @@ tab1, tab2, tab3 = st.tabs(["🪙 加密貨幣 (Pionex)", "💾 記憶體產業 
 
 # 【分頁 1】加密貨幣區塊 (升級為儀表板模式)
 with tab1:
+    # 【分頁 1】加密貨幣區塊 (升級為自動更新儀表板)
+with tab1:
     st.subheader("🪙 加密貨幣即時儀表板")
+    st.caption("⏱️ 系統將每 30 秒自動在背景為您抓取最新報價...")
     
-    # 建立三欄式佈局
-    col1, col2, col3 = st.columns(3)
-    
-    # 定義要抓取的幣種
-    dashboard_tickers = ["BTC_USDT", "ETH_USDT", "SOL_USDT"]
-    
-    if st.button("🔄 更新儀表板數據"):
+    # 🌟 魔法指令：告訴系統「這個函數裡面的東西」要每 30 秒自己重跑一次
+    @st.fragment(run_every="30s")
+    def auto_refresh_crypto():
+        col1, col2, col3 = st.columns(3)
         try:
-            # 抓取所有幣種數據
             url = "https://api.pionex.com/api/v1/market/tickers"
             response = requests.get(url)
             response.raise_for_status()
             data = response.json()
-            
-            # 建立一個字典方便查詢
             tickers_data = {t['symbol']: t for t in data['data']['tickers']}
             
-            # 定義顯示函數，增加安全性 (防止 KeyError)
             def display_crypto_metric(col, label, symbol_name):
                 crypto = tickers_data.get(symbol_name)
                 if crypto:
                     price = float(crypto.get('close', 0))
-                    # 嘗試抓取漲跌幅，若無則設為 0
                     change = float(crypto.get('change24h', 0)) * 100
                     col.metric(label, f"${price:,.2f}", f"{change:.2f}%")
                 else:
                     col.warning(f"找不到 {symbol_name}")
 
-            # 執行顯示
             display_crypto_metric(col1, "Bitcoin (BTC)", "BTC_USDT")
             display_crypto_metric(col2, "Ethereum (ETH)", "ETH_USDT")
             display_crypto_metric(col3, "Solana (SOL)", "SOL_USDT")
-                
-            st.success("✅ 數據已更新")
+            
         except Exception as e:
-            # 顯示具體的錯誤原因，方便我們抓蟲
             st.error(f"儀表板更新失敗，原因：{e}")
+            
+    # 啟動自動更新函數
+    auto_refresh_crypto()
+    
     st.divider()
-    # 保留原本的下拉選單查詢功能，方便查詢其他小幣
+    
+    # --- 原本的單一幣種查詢功能保留 ---
     st.caption("🔍 查詢其他特定幣種：")
-    # ... (後續保留原本的 selectbox 程式碼即可)
-
+    crypto_tickers = {
+        "狗狗幣 (DOGE)": "DOGE_USDT",
+        "瑞波幣 (XRP)": "XRP_USDT",
+        "艾達幣 (ADA)": "ADA_USDT"
+    }
+    selected_crypto = st.selectbox("選擇加密貨幣：", list(crypto_tickers.keys()))
+    
+    if st.button("手動取得報價"):
+        symbol = crypto_tickers[selected_crypto]
+        with st.spinner(f"連線至 Pionex 抓取中..."):
+            try:
+                url = f"https://api.pionex.com/api/v1/market/tickers?symbol={symbol}"
+                response = requests.get(url)
+                response.raise_for_status() 
+                data = response.json()
+                if data.get("data") and data["data"].get("tickers"):
+                    current_price = float(data["data"]["tickers"][0]["close"])
+                    st.metric(label=f"{selected_crypto} 最新價格 (USDT)", value=f"{current_price:,.4f}")
+                else:
+                    st.warning("⚠️ 系統回傳空白資料。")
+            except Exception as e:
+                st.error(f"❌ 報價抓取失敗：{e}")
 # 【分頁 2】記憶體產業區塊
 with tab2:
     st.subheader("記憶體大廠指標股")
