@@ -24,7 +24,7 @@ def get_google_news(query):
         return news_list
     except: return None
 
-# --- Yahoo 抓取神技 (雙數據版：金額與百分比) ---
+# --- Yahoo 抓取神技 ---
 def fetch_yahoo_single(sym, result_dict):
     url = f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}?range=5d&interval=1d"
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -70,37 +70,54 @@ st.title("📈 TSOU財經資訊中心")
 st.sidebar.header("⚙️ 系統設定")
 api_key = st.sidebar.text_input("輸入 Gemini API Key (啟動 AI):", type="password").strip()
 
-# --- 3. 建立 6 大分頁 (已移除記憶體產業) ---
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+# --- 3. 建立 7 大分頁 ---
+tab1, tab2, tab3, tab4, tab5, tab6= st.tabs([
     "💼 個人資產總覽", "📖 SA 助理", "🎧 KOL 提煉", "🪙 全市場儀表板", "⭐ 投資與試算", "📰 產業新聞"
 ])
 
-# 【分頁 1】💼 全新進化的 SA 格式資產總覽
+# 【分頁 1】💼 三大市場獨立管理的 SA 格式資產總覽
 with tab1:
     st.subheader("💼 個人資產動態管理中心")
     
-    if 'portfolio_df' not in st.session_state:
-        st.session_state.portfolio_df = pd.DataFrame({
-            '市場分類': ['美股', '美股', '台股', '台股'],
-            '標的代號': ['QQQ', 'QQQM', '009816.TW', '3324.TW'],
-            '持有股數': [0.0, 0.0, 0.0, 0.0],
-            '平均成本': [0.0, 0.0, 0.0, 0.0]
+    # 建立三個獨立的資料表來分開管理
+    if 'us_df' not in st.session_state:
+        st.session_state.us_df = pd.DataFrame({
+            '標的代號': ['NVDA', 'TSLA', 'GOOGL', 'KTOS', 'CRCL', 'NET', 'UUUU', 'PL', 'ASTS', 'RZLV', 'PLTR', 'CEG', 'QQQM', 'IREN', 'CRCL'],
+            '持有股數': [35.0, 27.0, 14.0, 15.0, 123.0, 17.6, 60.0, 15.0, 5.0, 100.0, 5.0, 5.0, 2.48, 43.0, 14.0],
+            '平均成本': [114.50, 298.91, 215.18, 90.52, 98.84, 186.07, 16.77, 25.42, 92.04, 5.60, 141.83, 315.02, 251.41, 53.57, 112.94]
+        })
+    if 'tw_df' not in st.session_state:
+        st.session_state.tw_df = pd.DataFrame({
+            '標的代號': ['009816.TW', '2337.TW', '009805.TW', '3563.TWO', '8299.TWO', '009805.TW', '2330.TW', '2374.TW', '2454.TW', '6530.TWO', '009816.TW', '3293.TWO', '7854.TWO', '8210.TW'],
+            '持有股數': [1087.0, 170.0, 2194.0, 22.0, 13.0, 3134.0, 450.0, 472.0, 34.0, 250.0, 3250.0, 164.0, 630.0, 60.0],
+            '平均成本': [10.31, 30.00, 13.77, 594.63, 1880.53, 13.50, 529.81, 89.35, 1331.29, 80.31, 10.31, 801.78, 73.74, 966.86]
+        })
+    if 'crypto_df' not in st.session_state:
+        st.session_state.crypto_df = pd.DataFrame({
+            '標的代號': ['BTC_USDT'],
+            '持有股數': [0.0616],
+            '平均成本': [94780.0]
         })
     
-    with st.expander("✏️ 點此修改持股資料 (數量與成本)", expanded=False):
-        st.info("💡 提示：在表格內直接修改數字。若要新增標的，點擊最下方空白列輸入即可。")
-        edited_df = st.data_editor(
-            st.session_state.portfolio_df, 
-            num_rows="dynamic",
-            use_container_width=True,
-            column_config={
-                "市場分類": st.column_config.SelectboxColumn("市場分類", options=["美股", "台股", "加密貨幣"], required=True),
-                "標的代號": st.column_config.TextColumn("標的代號 (Symbol)"),
-                "持有股數": st.column_config.NumberColumn("持有股數 (Shares)", format="%.4f"),
-                "平均成本": st.column_config.NumberColumn("平均成本 (Cost)", format="%.2f")
-            }
-        )
-        st.session_state.portfolio_df = edited_df
+    with st.expander("✏️ 點此展開修改持股資料 (分開管理)", expanded=False):
+        st.info("💡 提示：根據您的截圖已為您預先建檔。您可以直接在表格內修改，或點擊最下方空白列新增。")
+        
+        col_t1, col_t2, col_t3 = st.columns(3)
+        with col_t1:
+            st.markdown("#### 🇺🇸 美股資產")
+            us_edited = st.data_editor(st.session_state.us_df, num_rows="dynamic", use_container_width=True, key="us")
+            st.session_state.us_df = us_edited
+            
+        with col_t2:
+            st.markdown("#### 🇹🇼 台股資產")
+            st.caption("※ 上市加 .TW，上櫃加 .TWO")
+            tw_edited = st.data_editor(st.session_state.tw_df, num_rows="dynamic", use_container_width=True, key="tw")
+            st.session_state.tw_df = tw_edited
+            
+        with col_t3:
+            st.markdown("#### 🪙 加密貨幣")
+            crypto_edited = st.data_editor(st.session_state.crypto_df, num_rows="dynamic", use_container_width=True, key="crypto")
+            st.session_state.crypto_df = crypto_edited
 
     st.markdown("---")
     
@@ -114,6 +131,13 @@ with tab1:
 
     if calculate_btn:
         with st.spinner("🌍 正在全網抓取最新報價，生成分析報表中..."):
+            
+            # 將三個表格合併處理計算
+            us_copy = us_edited.copy(); us_copy['市場分類'] = '美股'
+            tw_copy = tw_edited.copy(); tw_copy['市場分類'] = '台股'
+            crypto_copy = crypto_edited.copy(); crypto_copy['市場分類'] = '加密貨幣'
+            edited_df = pd.concat([us_copy, tw_copy, crypto_copy], ignore_index=True)
+            
             yahoo_symbols = edited_df[edited_df['市場分類'].isin(['美股', '台股'])]['標的代號'].tolist()
             yahoo_prices = get_yahoo_bulk_threaded(yahoo_symbols)
             
@@ -159,6 +183,7 @@ with tab1:
                 total_today_gain_twd += (today_gain * multiplier)
                 
                 portfolio_data.append({
+                    "Market": market,
                     "Symbol": sym,
                     "Price": live_price,
                     "Change": change_amt,
@@ -184,12 +209,13 @@ with tab1:
                 for item in portfolio_data:
                     w = ((item['Value'] * item['_multiplier']) / total_value_twd * 100) if total_value_twd > 0 else 0.0
                     display_list.append({
+                        "市場": item['Market'],
                         "Symbol": item['Symbol'],
                         "Price": f"{item['Price']:,.2f}",
                         "Change": f"{item['Change']:+.2f}",
                         "Change %": f"{item['Change %']:+.2f}%",
                         "Weight": f"{w:.1f}%",
-                        "Shares": f"{item['Shares']:,.2f}",
+                        "Shares": f"{item['Shares']:,.4f}",
                         "Cost": f"{item['Cost']:,.2f}",
                         "Today's Gain": f"{item['Today\'s Gain']:+.2f}",
                         "Today's % Gain": f"{item['Today\'s % Gain']:+.2f}%",
@@ -285,7 +311,7 @@ with tab3:
                     res = genai.GenerativeModel('gemini-2.5-flash').generate_content(f"請精煉貼文：1.核心觀點 2.數據與邏輯 3.提到標的 4.結論\n\n{fb_post}")
                     st.write(res.text)
 
-# 【分頁 4】全市場即時儀表板 (已修復 KeyError)
+# 【分頁 4】全市場即時儀表板
 with tab4:
     st.subheader("🪙 全市場即時儀表板 (Crypto & 美股)")
     pionex_tokens = {"Bitcoin (BTC)": "BTC_USDT", "Ethereum (ETH)": "ETH_USDT", "Cardano (ADA)": "ADA_USDT"}
@@ -316,8 +342,7 @@ with tab4:
                     stock = yahoo_data.get(symbol)
                     if stock and stock['price'] > 0:
                         fmt_price = f"${stock['price']:,.4f}" if stock['price'] < 1 else f"${stock['price']:,.2f}"
-                        # 這裡已經修正為 change_pct 👇
-                        cols[idx % 4].metric(label, fmt_price, f"{stock['change_pct']:.2f}%") 
+                        cols[idx % 4].metric(label, fmt_price, f"{stock['change_pct']:.2f}%")
     auto_refresh_dual_engine()
 
 # 【分頁 5】投資計畫與超級複利試算機
