@@ -70,7 +70,7 @@ st.title("📈 TSOU財經資訊中心")
 st.sidebar.header("⚙️ 系統設定")
 api_key = st.sidebar.text_input("輸入 Gemini API Key (啟動 AI):", type="password").strip()
 
-# --- 3. 建立 6 大分頁 (重新排序並刪除記憶體) ---
+# --- 3. 建立 6 大分頁 ---
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "💼 個人資產總覽", "📖 SA 助理", "📰 產業新聞", "🎧 KOL 提煉", "🪙 全市場儀表板", "⭐ 投資與試算"
 ])
@@ -79,7 +79,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 with tab1:
     st.subheader("💼 個人資產動態管理中心")
     
-    # 使用 v2 確保雲端載入最新的英文名稱設定
+    # 預設資料
     if 'us_df_v2' not in st.session_state:
         st.session_state.us_df_v2 = pd.DataFrame({
             '標的名稱': ['NVIDIA', 'Tesla', 'Alphabet', 'Kratos Defense', 'Circle', 'Cloudflare', 'Energy Fuels', 'Planet Labs', 'AST SpaceMobile', 'Rezolve AI', 'Palantir', 'Constellation', 'Invesco QQQM', 'Iris Energy', 'Circle'],
@@ -102,7 +102,40 @@ with tab1:
             '平均成本': [94780.0]
         })
     
-    with st.expander("✏️ 點此展開修改持股資料 (分開管理)", expanded=False):
+    # 🌟 新增：雲端存檔與讀檔系統 🌟
+    with st.expander("💾 存檔與讀檔 (防網頁重置備份區)", expanded=True):
+        st.info("由於免費雲端主機會在重新整理後重置資料，您可以將修改完的配置『下載』成存檔。下次打開網頁時，只要『上傳』就能瞬間恢復您的專屬配置！")
+        
+        col_save, col_load = st.columns(2)
+        with col_save:
+            # 準備合併下載的資料
+            us_dl = st.session_state.us_df_v2.copy(); us_dl['市場分類'] = '美股'
+            tw_dl = st.session_state.tw_df_v2.copy(); tw_dl['市場分類'] = '台股'
+            cr_dl = st.session_state.crypto_df_v2.copy(); cr_dl['市場分類'] = '加密貨幣'
+            master_dl = pd.concat([us_dl, tw_dl, cr_dl], ignore_index=True)
+            # 轉成帶有 BOM 的 UTF-8 避免中文亂碼
+            csv_data = master_dl.to_csv(index=False).encode('utf-8-sig')
+            
+            st.download_button(
+                label="⬇️ 下載最新資產存檔 (CSV)",
+                data=csv_data,
+                file_name="my_portfolio_save.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+            
+        with col_load:
+            uploaded_file = st.file_uploader("📂 上傳資產存檔以覆蓋還原：", type="csv", label_visibility="collapsed")
+            if uploaded_file is not None:
+                if st.button("確認讀取並還原資料", use_container_width=True):
+                    loaded_df = pd.read_csv(uploaded_file)
+                    # 把讀進來的資料切分回去，並存入網頁記憶體中
+                    st.session_state.us_df_v2 = loaded_df[loaded_df['市場分類'] == '美股'].drop(columns=['市場分類']).reset_index(drop=True)
+                    st.session_state.tw_df_v2 = loaded_df[loaded_df['市場分類'] == '台股'].drop(columns=['市場分類']).reset_index(drop=True)
+                    st.session_state.crypto_df_v2 = loaded_df[loaded_df['市場分類'] == '加密貨幣'].drop(columns=['市場分類']).reset_index(drop=True)
+                    st.rerun() # 重新整理網頁畫面以套用新資料
+
+    with st.expander("✏️ 點此展開修改持股資料 (修改後記得去上方存檔喔)", expanded=False):
         col_t1, col_t2, col_t3 = st.columns(3)
         with col_t1:
             st.markdown("#### 🇺🇸 美股資產")
@@ -119,8 +152,8 @@ with tab1:
 
     st.markdown("---")
     
-    # --- 自動抓取即時美金匯率 ---
-    live_usd_twd = 32.50 # 預設值
+    # 自動抓取即時美金匯率
+    live_usd_twd = 32.50 
     try:
         usd_res = {}
         fetch_yahoo_single("USDTWD=X", usd_res)
@@ -379,7 +412,6 @@ with tab5:
 with tab6:
     st.subheader("⭐ 長期投資計畫與超級複利試算機")
     
-    # 這裡也同步使用自動抓取的匯率
     live_usd_twd_calc = 32.50
     try:
         usd_res_calc = {}
