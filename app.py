@@ -24,7 +24,7 @@ def get_google_news(query):
         return news_list
     except: return None
 
-# --- Yahoo 抓取神技 (進階版：抓取精準備前收盤價以計算今日損益) ---
+# --- Yahoo 抓取神技 (雙數據版：金額與百分比) ---
 def fetch_yahoo_single(sym, result_dict):
     url = f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}?range=5d&interval=1d"
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -70,16 +70,15 @@ st.title("📈 TSOU財經資訊中心")
 st.sidebar.header("⚙️ 系統設定")
 api_key = st.sidebar.text_input("輸入 Gemini API Key (啟動 AI):", type="password").strip()
 
-# --- 3. 建立 7 大分頁 ---
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "💼 個人資產總覽", "📖 SA 助理", "🎧 KOL 提煉", "🪙 全市場儀表板", "💾 記憶體產業", "⭐ 投資與試算", "📰 產業新聞"
+# --- 3. 建立 6 大分頁 (已移除記憶體產業) ---
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "💼 個人資產總覽", "📖 SA 助理", "🎧 KOL 提煉", "🪙 全市場儀表板", "⭐ 投資與試算", "📰 產業新聞"
 ])
 
 # 【分頁 1】💼 全新進化的 SA 格式資產總覽
 with tab1:
     st.subheader("💼 個人資產動態管理中心")
     
-    # 預設資料表
     if 'portfolio_df' not in st.session_state:
         st.session_state.portfolio_df = pd.DataFrame({
             '市場分類': ['美股', '美股', '台股', '台股'],
@@ -122,7 +121,6 @@ with tab1:
             try:
                 res = requests.get("https://api.pionex.com/api/v1/market/tickers", timeout=5)
                 for t in res.json().get('data', {}).get('tickers', []):
-                    # 推算加密貨幣的漲跌金額
                     close_px = float(t['close'])
                     chg_pct = float(t['change24h'])
                     prev_px = close_px / (1 + chg_pct) if (1 + chg_pct) != 0 else close_px
@@ -134,7 +132,6 @@ with tab1:
             total_value_twd = 0.0
             total_today_gain_twd = 0.0
             
-            # 第一階段：計算所有個股市值以換算權重
             for index, row in edited_df.iterrows():
                 market = row['市場分類']
                 sym = row['標的代號']
@@ -169,23 +166,20 @@ with tab1:
                     "Shares": shares,
                     "Cost": cost,
                     "Today's Gain": today_gain,
-                    "Today's %": change_pct, # 今日漲跌幅等同今日獲利率
+                    "Today's % Gain": change_pct, 
                     "Total Change": total_gain,
                     "Total % Change": total_gain_pct,
                     "Value": current_val,
-                    "_multiplier": multiplier # 隱藏欄位用於計算權重
+                    "_multiplier": multiplier 
                 })
 
             if portfolio_data:
-                # 建立頂部數據總結 (模仿 SA 介面)
                 total_change_twd = total_value_twd - total_invested_twd
                 total_change_pct = (total_change_twd / total_invested_twd * 100) if total_invested_twd > 0 else 0.0
                 today_gain_pct = (total_today_gain_twd / (total_value_twd - total_today_gain_twd) * 100) if (total_value_twd - total_today_gain_twd) > 0 else 0.0
                 
-                # 總結大標題
                 st.markdown(f"### 👁 NT$ {total_value_twd:,.0f} &nbsp;&nbsp; <span style='color:{'#00d26a' if total_change_twd >= 0 else '#f6465d'}; font-size:24px;'>{'↗' if total_change_twd >= 0 else '↘'} {total_change_twd:+,.0f} ({total_change_pct:+.2f}%) 總未實現</span>", unsafe_allow_html=True)
                 
-                # 計算權重並格式化字串以備渲染
                 display_list = []
                 for item in portfolio_data:
                     w = ((item['Value'] * item['_multiplier']) / total_value_twd * 100) if total_value_twd > 0 else 0.0
@@ -198,7 +192,7 @@ with tab1:
                         "Shares": f"{item['Shares']:,.2f}",
                         "Cost": f"{item['Cost']:,.2f}",
                         "Today's Gain": f"{item['Today\'s Gain']:+.2f}",
-                        "Today's % Gain": f"{item['Today\'s %']:+.2f}%",
+                        "Today's % Gain": f"{item['Today\'s % Gain']:+.2f}%",
                         "Total Change": f"{item['Total Change']:+.2f}",
                         "Total % Change": f"{item['Total % Change']:+.2f}%",
                         "Value": f"{item['Value']:,.2f}"
@@ -206,7 +200,6 @@ with tab1:
                 
                 df_display = pd.DataFrame(display_list)
                 
-                # 套用綠漲紅跌的 CSS 渲染引擎
                 def color_positive_negative(val):
                     if isinstance(val, str):
                         if val.startswith('+'): return 'color: #00d26a; font-weight: bold;'
@@ -292,7 +285,7 @@ with tab3:
                     res = genai.GenerativeModel('gemini-2.5-flash').generate_content(f"請精煉貼文：1.核心觀點 2.數據與邏輯 3.提到標的 4.結論\n\n{fb_post}")
                     st.write(res.text)
 
-# 【分頁 4】全市場即時儀表板
+# 【分頁 4】全市場即時儀表板 (已修復 KeyError)
 with tab4:
     st.subheader("🪙 全市場即時儀表板 (Crypto & 美股)")
     pionex_tokens = {"Bitcoin (BTC)": "BTC_USDT", "Ethereum (ETH)": "ETH_USDT", "Cardano (ADA)": "ADA_USDT"}
@@ -323,21 +316,12 @@ with tab4:
                     stock = yahoo_data.get(symbol)
                     if stock and stock['price'] > 0:
                         fmt_price = f"${stock['price']:,.4f}" if stock['price'] < 1 else f"${stock['price']:,.2f}"
-                        cols[idx % 4].metric(label, fmt_price, f"{stock['change']:.2f}%")
+                        # 這裡已經修正為 change_pct 👇
+                        cols[idx % 4].metric(label, fmt_price, f"{stock['change_pct']:.2f}%") 
     auto_refresh_dual_engine()
 
-# 【分頁 5】記憶體產業
+# 【分頁 5】投資計畫與超級複利試算機
 with tab5:
-    st.subheader("💾 記憶體大廠指標股")
-    memory_tickers = {"美光 Micron": "MU", "南亞科": "2408.TW", "華邦電": "2344.TW", "威騰 WD": "WDC"}
-    selected_memory = st.selectbox("選擇記憶體指標：", list(memory_tickers.keys()))
-    if st.button("取得報價"):
-        res_dict = {}
-        fetch_yahoo_single(memory_tickers[selected_memory], res_dict)
-        if memory_tickers[selected_memory] in res_dict: st.metric(label=f"{selected_memory} 最新報價", value=f"{res_dict[memory_tickers[selected_memory]]['price']:.2f}")
-
-# 【分頁 6】投資計畫與超級複利試算機
-with tab6:
     st.subheader("⭐ 長期投資計畫與超級複利試算機")
     live_qqqm, live_tw = 0.0, 0.0
     with st.spinner("抓取價格中..."):
@@ -376,8 +360,8 @@ with tab6:
         total_future_twd = (qqqm_fv * exchange_rate) + tw_fv
         st.error(f"🎉 **{invest_years} 年後總資產預估達：NT$ {total_future_twd:,.0f}**")
 
-# 【分頁 7】產業新聞與 AI 總結
-with tab7:
+# 【分頁 6】產業新聞與 AI 總結
+with tab6:
     st.subheader("📰 產業新聞與 AI 總結")
     search_query = st.text_input("🔍 查詢產業或公司：", "例如：009816 凱基台灣 表現")
     if st.button("取得最新消息與 AI 總結"):
