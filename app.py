@@ -70,32 +70,32 @@ st.title("📈 TSOU財經資訊中心")
 st.sidebar.header("⚙️ 系統設定")
 api_key = st.sidebar.text_input("輸入 Gemini API Key (啟動 AI):", type="password").strip()
 
-# --- 3. 建立 7 大分頁 ---
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "💼 個人資產總覽", "📖 SA 助理", "🎧 KOL 提煉", "🪙 全市場儀表板", "⭐ 投資與試算", "📰 產業新聞", "💾 記憶體"
+# --- 3. 建立 6 大分頁 (重新排序並刪除記憶體) ---
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "💼 個人資產總覽", "📖 SA 助理", "📰 產業新聞", "🎧 KOL 提煉", "🪙 全市場儀表板", "⭐ 投資與試算"
 ])
 
-# 【分頁 1】💼 三大市場獨立管理的 SA 格式資產總覽
+# 【分頁 1】💼 個人資產動態管理中心
 with tab1:
     st.subheader("💼 個人資產動態管理中心")
     
-    # 建立三個獨立的資料表來分開管理，全面加入「標的名稱」
-    if 'us_df' not in st.session_state:
-        st.session_state.us_df = pd.DataFrame({
-            '標的名稱': ['輝達', '特斯拉', '谷歌', '克瑞托斯', 'Circle', 'Cloudflare', 'Energy Fuels', 'Planet Labs', 'AST SpaceMobile', 'Rezolve', '帕蘭泰爾', 'Constellation', '納斯達克100', 'Iris Energy', 'Circle'],
+    # 使用 v2 確保雲端載入最新的英文名稱設定
+    if 'us_df_v2' not in st.session_state:
+        st.session_state.us_df_v2 = pd.DataFrame({
+            '標的名稱': ['NVIDIA', 'Tesla', 'Alphabet', 'Kratos Defense', 'Circle', 'Cloudflare', 'Energy Fuels', 'Planet Labs', 'AST SpaceMobile', 'Rezolve AI', 'Palantir', 'Constellation', 'Invesco QQQM', 'Iris Energy', 'Circle'],
             '標的代號': ['NVDA', 'TSLA', 'GOOGL', 'KTOS', 'CRCL', 'NET', 'UUUU', 'PL', 'ASTS', 'RZLV', 'PLTR', 'CEG', 'QQQM', 'IREN', 'CRCL'],
             '持有股數': [35.0, 27.0, 14.0, 15.0, 123.0, 17.6, 60.0, 15.0, 5.0, 100.0, 5.0, 5.0, 2.48, 43.0, 14.0],
             '平均成本': [114.50, 298.91, 215.18, 90.52, 98.84, 186.07, 16.77, 25.42, 92.04, 5.60, 141.83, 315.02, 251.41, 53.57, 112.94]
         })
-    if 'tw_df' not in st.session_state:
-        st.session_state.tw_df = pd.DataFrame({
+    if 'tw_df_v2' not in st.session_state:
+        st.session_state.tw_df_v2 = pd.DataFrame({
             '標的名稱': ['凱基台灣TOP50', '旺宏', '新光美國電力', '牧德', '群聯', '新光美國電力', '台積電', '佳能', '聯發科', '創威', '凱基台灣TOP50', '鈊象', '佐茂', '勤誠'],
             '標的代號': ['009816.TW', '2337.TW', '009805.TW', '3563.TW', '8299.TWO', '009805.TW', '2330.TW', '2374.TW', '2454.TW', '6530.TWO', '009816.TW', '3293.TWO', '7854.TWO', '8210.TW'],
             '持有股數': [1087.0, 170.0, 2194.0, 22.0, 13.0, 3134.0, 450.0, 472.0, 34.0, 250.0, 3250.0, 164.0, 630.0, 60.0],
             '平均成本': [10.31, 30.00, 13.77, 594.63, 1880.53, 13.50, 529.81, 89.35, 1331.29, 80.31, 10.31, 801.78, 73.74, 966.86]
         })
-    if 'crypto_df' not in st.session_state:
-        st.session_state.crypto_df = pd.DataFrame({
+    if 'crypto_df_v2' not in st.session_state:
+        st.session_state.crypto_df_v2 = pd.DataFrame({
             '標的名稱': ['比特幣'],
             '標的代號': ['BTC_USDT'],
             '持有股數': [0.0616],
@@ -103,29 +103,34 @@ with tab1:
         })
     
     with st.expander("✏️ 點此展開修改持股資料 (分開管理)", expanded=False):
-        st.info("💡 提示：根據您的截圖已為您預先建檔（已修正牧德代號為上市 3563.TW）。")
-        
         col_t1, col_t2, col_t3 = st.columns(3)
         with col_t1:
             st.markdown("#### 🇺🇸 美股資產")
-            us_edited = st.data_editor(st.session_state.us_df, num_rows="dynamic", use_container_width=True, key="us")
-            st.session_state.us_df = us_edited
-            
+            us_edited = st.data_editor(st.session_state.us_df_v2, num_rows="dynamic", use_container_width=True)
+            st.session_state.us_df_v2 = us_edited
         with col_t2:
             st.markdown("#### 🇹🇼 台股資產")
-            tw_edited = st.data_editor(st.session_state.tw_df, num_rows="dynamic", use_container_width=True, key="tw")
-            st.session_state.tw_df = tw_edited
-            
+            tw_edited = st.data_editor(st.session_state.tw_df_v2, num_rows="dynamic", use_container_width=True)
+            st.session_state.tw_df_v2 = tw_edited
         with col_t3:
             st.markdown("#### 🪙 加密貨幣")
-            crypto_edited = st.data_editor(st.session_state.crypto_df, num_rows="dynamic", use_container_width=True, key="crypto")
-            st.session_state.crypto_df = crypto_edited
+            crypto_edited = st.data_editor(st.session_state.crypto_df_v2, num_rows="dynamic", use_container_width=True)
+            st.session_state.crypto_df_v2 = crypto_edited
 
     st.markdown("---")
     
+    # --- 自動抓取即時美金匯率 ---
+    live_usd_twd = 32.50 # 預設值
+    try:
+        usd_res = {}
+        fetch_yahoo_single("USDTWD=X", usd_res)
+        if "USDTWD=X" in usd_res and usd_res["USDTWD=X"]['price'] > 0:
+            live_usd_twd = usd_res["USDTWD=X"]['price']
+    except: pass
+    
     col_rate, col_btn, col_empty = st.columns([1, 1, 2])
     with col_rate:
-        usd_to_twd = st.number_input("💵 目前美金兌台幣匯率：", value=32.5, step=0.1)
+        usd_to_twd = st.number_input("💵 目前美金兌台幣即時匯率：", value=float(live_usd_twd), step=0.1)
     with col_btn:
         st.write("")
         st.write("")
@@ -133,7 +138,6 @@ with tab1:
 
     if calculate_btn:
         with st.spinner("🌍 正在全網抓取最新報價，生成分析報表中..."):
-            
             us_copy = us_edited.copy(); us_copy['市場分類'] = '美股'
             tw_copy = tw_edited.copy(); tw_copy['市場分類'] = '台股'
             crypto_copy = crypto_edited.copy(); crypto_copy['市場分類'] = '加密貨幣'
@@ -144,7 +148,6 @@ with tab1:
             
             pionex_prices = {}
             try:
-                # 增加一點連線等待時間，避免比特幣抓不到
                 res = requests.get("https://api.pionex.com/api/v1/market/tickers", timeout=8)
                 for t in res.json().get('data', {}).get('tickers', []):
                     close_px = float(t['close'])
@@ -173,7 +176,6 @@ with tab1:
                 change_amt = market_data['change_amt']
                 change_pct = market_data['change_pct']
                 
-                # 🛡️ 究極防呆保護機制：如果抓不到報價 (價格為0)，將現價強制設定為成本價，保護總資產不被 -100% 拖垮
                 if live_price == 0.0 and cost > 0:
                     live_price = cost
                     change_amt = 0.0
@@ -248,8 +250,6 @@ with tab1:
                 )
                 
                 st.dataframe(styled_df, use_container_width=True, hide_index=True)
-            else:
-                st.warning("請先在上方展開並填寫持股數量與成本。")
 
 # 【分頁 2】Seeking Alpha AI 專業助理
 with tab2:
@@ -279,8 +279,28 @@ with tab2:
                     st.write(res.text)
                 except Exception as e: st.error(f"❌ AI 解析失敗：{e}")
 
-# 【分頁 3】財經 KOL 影音/貼文提煉引擎
+# 【分頁 3】產業新聞與 AI 總結
 with tab3:
+    st.subheader("📰 產業新聞與 AI 總結")
+    search_query = st.text_input("🔍 查詢產業或公司：", "例如：特斯拉 最新財報與表現")
+    if st.button("取得最新消息與 AI 總結"):
+        with st.spinner("抓取新聞中..."):
+            news_data = get_google_news(search_query)
+            if news_data:
+                news_text = ""
+                for idx, news in enumerate(news_data):
+                    st.markdown(f"**{idx + 1}. [{news['title']}]({news['link']})**")
+                    news_text += f"- {news['title']}\n"
+                if api_key:
+                    with st.spinner("🤖 AI 正在提煉重點..."):
+                        genai.configure(api_key=api_key)
+                        res = genai.GenerativeModel('gemini-2.5-flash').generate_content(f"請總結 3 個產業重點：\n\n{news_text}")
+                        st.info("### 🤖 AI 重點總結")
+                        st.write(res.text)
+            else: st.error("❌ 抓取失敗。")
+
+# 【分頁 4】財經 KOL 影音/貼文提煉引擎
+with tab4:
     st.subheader("🎧 財經 KOL 重點提煉引擎")
     source_type = st.radio("請選擇您要提煉的資訊來源：", ["🎥 YouTube 影片網址 (自動擷取字幕)", "📝 Facebook 貼文 (手動複製貼上)"])
     
@@ -321,8 +341,8 @@ with tab3:
                     res = genai.GenerativeModel('gemini-2.5-flash').generate_content(f"請精煉貼文：1.核心觀點 2.數據與邏輯 3.提到標的 4.結論\n\n{fb_post}")
                     st.write(res.text)
 
-# 【分頁 4】全市場即時儀表板
-with tab4:
+# 【分頁 5】全市場即時儀表板
+with tab5:
     st.subheader("🪙 全市場即時儀表板 (Crypto & 美股)")
     pionex_tokens = {"Bitcoin (BTC)": "BTC_USDT", "Ethereum (ETH)": "ETH_USDT", "Cardano (ADA)": "ADA_USDT"}
     yahoo_groups = {
@@ -355,9 +375,19 @@ with tab4:
                         cols[idx % 4].metric(label, fmt_price, f"{stock['change_pct']:.2f}%")
     auto_refresh_dual_engine()
 
-# 【分頁 5】投資計畫與超級複利試算機
-with tab5:
+# 【分頁 6】投資計畫與超級複利試算機
+with tab6:
     st.subheader("⭐ 長期投資計畫與超級複利試算機")
+    
+    # 這裡也同步使用自動抓取的匯率
+    live_usd_twd_calc = 32.50
+    try:
+        usd_res_calc = {}
+        fetch_yahoo_single("USDTWD=X", usd_res_calc)
+        if "USDTWD=X" in usd_res_calc and usd_res_calc["USDTWD=X"]['price'] > 0:
+            live_usd_twd_calc = usd_res_calc["USDTWD=X"]['price']
+    except: pass
+
     live_qqqm, live_tw = 0.0, 0.0
     with st.spinner("抓取價格中..."):
         try:
@@ -374,7 +404,8 @@ with tab5:
             qqqm_shares = st.number_input("持有 QQQM 股數 (試算用)：", value=0.0, step=0.1)
         with col_inv2:
             tw_shares = st.number_input("持有 009816 股數 (試算用)：", value=0.0, step=1.0)
-        exchange_rate = st.number_input("美金匯率：", value=32.5)
+        
+        exchange_rate = st.number_input("美金匯率 (自動更新)：", value=float(live_usd_twd_calc))
         
         invest_years = st.slider("預計投資年限 (年)：", 1, 40, 20)
         col_calc1, col_calc2 = st.columns(2)
@@ -390,37 +421,4 @@ with tab5:
         qqqm_fv = (qqqm_shares * live_qqqm * ((1 + qqqm_m_rate) ** months)) + (qqqm_monthly * (((1 + qqqm_m_rate) ** months - 1) / qqqm_m_rate) if qqqm_m_rate > 0 else qqqm_monthly * months)
         
         tw_m_rate = (tw_rate / 100) / 12
-        tw_fv = (tw_shares * live_tw * ((1 + tw_m_rate) ** months)) + (tw_monthly * (((1 + tw_m_rate) ** months - 1) / tw_m_rate) if tw_m_rate > 0 else tw_monthly * months)
-
-        total_future_twd = (qqqm_fv * exchange_rate) + tw_fv
-        st.error(f"🎉 **{invest_years} 年後總資產預估達：NT$ {total_future_twd:,.0f}**")
-
-# 【分頁 6】產業新聞與 AI 總結
-with tab6:
-    st.subheader("📰 產業新聞與 AI 總結")
-    search_query = st.text_input("🔍 查詢產業或公司：", "例如：009816 凱基台灣 表現")
-    if st.button("取得最新消息與 AI 總結"):
-        with st.spinner("抓取新聞中..."):
-            news_data = get_google_news(search_query)
-            if news_data:
-                news_text = ""
-                for idx, news in enumerate(news_data):
-                    st.markdown(f"**{idx + 1}. [{news['title']}]({news['link']})**")
-                    news_text += f"- {news['title']}\n"
-                if api_key:
-                    with st.spinner("🤖 AI 正在提煉重點..."):
-                        genai.configure(api_key=api_key)
-                        res = genai.GenerativeModel('gemini-2.5-flash').generate_content(f"請總結 3 個產業重點：\n\n{news_text}")
-                        st.info("### 🤖 AI 重點總結")
-                        st.write(res.text)
-            else: st.error("❌ 抓取失敗。")
-
-# 【分頁 7】記憶體產業
-with tab7:
-    st.subheader("💾 記憶體大廠指標股")
-    memory_tickers = {"美光 Micron": "MU", "南亞科": "2408.TW", "華邦電": "2344.TW", "威騰 WD": "WDC"}
-    selected_memory = st.selectbox("選擇記憶體指標：", list(memory_tickers.keys()))
-    if st.button("取得報價"):
-        res_dict = {}
-        fetch_yahoo_single(memory_tickers[selected_memory], res_dict)
-        if memory_tickers[selected_memory] in res_dict: st.metric(label=f"{selected_memory} 最新報價", value=f"{res_dict[memory_tickers[selected_memory]]['price']:.2f}")
+        tw_fv = (tw_shares * live_tw * ((1 + tw
