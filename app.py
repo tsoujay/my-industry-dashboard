@@ -71,36 +71,39 @@ st.sidebar.header("⚙️ 系統設定")
 api_key = st.sidebar.text_input("輸入 Gemini API Key (啟動 AI):", type="password").strip()
 
 # --- 3. 建立 7 大分頁 ---
-tab1, tab2, tab3, tab4, tab5, tab6= st.tabs([
-    "💼 個人資產總覽", "📖 SA 助理", "🎧 KOL 提煉", "🪙 全市場儀表板", "⭐ 投資與試算", "📰 產業新聞"
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "💼 個人資產總覽", "📖 SA 助理", "🎧 KOL 提煉", "🪙 全市場儀表板", "⭐ 投資與試算", "📰 產業新聞", "💾 記憶體"
 ])
 
 # 【分頁 1】💼 三大市場獨立管理的 SA 格式資產總覽
 with tab1:
     st.subheader("💼 個人資產動態管理中心")
     
-    # 建立三個獨立的資料表來分開管理
+    # 建立三個獨立的資料表來分開管理，全面加入「標的名稱」
     if 'us_df' not in st.session_state:
         st.session_state.us_df = pd.DataFrame({
+            '標的名稱': ['輝達', '特斯拉', '谷歌', '克瑞托斯', 'Circle', 'Cloudflare', 'Energy Fuels', 'Planet Labs', 'AST SpaceMobile', 'Rezolve', '帕蘭泰爾', 'Constellation', '納斯達克100', 'Iris Energy', 'Circle'],
             '標的代號': ['NVDA', 'TSLA', 'GOOGL', 'KTOS', 'CRCL', 'NET', 'UUUU', 'PL', 'ASTS', 'RZLV', 'PLTR', 'CEG', 'QQQM', 'IREN', 'CRCL'],
             '持有股數': [35.0, 27.0, 14.0, 15.0, 123.0, 17.6, 60.0, 15.0, 5.0, 100.0, 5.0, 5.0, 2.48, 43.0, 14.0],
             '平均成本': [114.50, 298.91, 215.18, 90.52, 98.84, 186.07, 16.77, 25.42, 92.04, 5.60, 141.83, 315.02, 251.41, 53.57, 112.94]
         })
     if 'tw_df' not in st.session_state:
         st.session_state.tw_df = pd.DataFrame({
-            '標的代號': ['009816.TW', '2337.TW', '009805.TW', '3563.TWO', '8299.TWO', '009805.TW', '2330.TW', '2374.TW', '2454.TW', '6530.TWO', '009816.TW', '3293.TWO', '7854.TWO', '8210.TW'],
+            '標的名稱': ['凱基台灣TOP50', '旺宏', '新光美國電力', '牧德', '群聯', '新光美國電力', '台積電', '佳能', '聯發科', '創威', '凱基台灣TOP50', '鈊象', '佐茂', '勤誠'],
+            '標的代號': ['009816.TW', '2337.TW', '009805.TW', '3563.TW', '8299.TWO', '009805.TW', '2330.TW', '2374.TW', '2454.TW', '6530.TWO', '009816.TW', '3293.TWO', '7854.TWO', '8210.TW'],
             '持有股數': [1087.0, 170.0, 2194.0, 22.0, 13.0, 3134.0, 450.0, 472.0, 34.0, 250.0, 3250.0, 164.0, 630.0, 60.0],
             '平均成本': [10.31, 30.00, 13.77, 594.63, 1880.53, 13.50, 529.81, 89.35, 1331.29, 80.31, 10.31, 801.78, 73.74, 966.86]
         })
     if 'crypto_df' not in st.session_state:
         st.session_state.crypto_df = pd.DataFrame({
+            '標的名稱': ['比特幣'],
             '標的代號': ['BTC_USDT'],
             '持有股數': [0.0616],
             '平均成本': [94780.0]
         })
     
     with st.expander("✏️ 點此展開修改持股資料 (分開管理)", expanded=False):
-        st.info("💡 提示：根據您的截圖已為您預先建檔。您可以直接在表格內修改，或點擊最下方空白列新增。")
+        st.info("💡 提示：根據您的截圖已為您預先建檔（已修正牧德代號為上市 3563.TW）。")
         
         col_t1, col_t2, col_t3 = st.columns(3)
         with col_t1:
@@ -110,7 +113,6 @@ with tab1:
             
         with col_t2:
             st.markdown("#### 🇹🇼 台股資產")
-            st.caption("※ 上市加 .TW，上櫃加 .TWO")
             tw_edited = st.data_editor(st.session_state.tw_df, num_rows="dynamic", use_container_width=True, key="tw")
             st.session_state.tw_df = tw_edited
             
@@ -132,7 +134,6 @@ with tab1:
     if calculate_btn:
         with st.spinner("🌍 正在全網抓取最新報價，生成分析報表中..."):
             
-            # 將三個表格合併處理計算
             us_copy = us_edited.copy(); us_copy['市場分類'] = '美股'
             tw_copy = tw_edited.copy(); tw_copy['市場分類'] = '台股'
             crypto_copy = crypto_edited.copy(); crypto_copy['市場分類'] = '加密貨幣'
@@ -143,7 +144,8 @@ with tab1:
             
             pionex_prices = {}
             try:
-                res = requests.get("https://api.pionex.com/api/v1/market/tickers", timeout=5)
+                # 增加一點連線等待時間，避免比特幣抓不到
+                res = requests.get("https://api.pionex.com/api/v1/market/tickers", timeout=8)
                 for t in res.json().get('data', {}).get('tickers', []):
                     close_px = float(t['close'])
                     chg_pct = float(t['change24h'])
@@ -159,6 +161,7 @@ with tab1:
             for index, row in edited_df.iterrows():
                 market = row['市場分類']
                 sym = row['標的代號']
+                name = row['標的名稱'] if '標的名稱' in row and pd.notna(row['標的名稱']) else ""
                 shares = float(row['持有股數']) if pd.notna(row['持有股數']) else 0.0
                 cost = float(row['平均成本']) if pd.notna(row['平均成本']) else 0.0
                 
@@ -169,6 +172,12 @@ with tab1:
                 live_price = market_data['price']
                 change_amt = market_data['change_amt']
                 change_pct = market_data['change_pct']
+                
+                # 🛡️ 究極防呆保護機制：如果抓不到報價 (價格為0)，將現價強制設定為成本價，保護總資產不被 -100% 拖垮
+                if live_price == 0.0 and cost > 0:
+                    live_price = cost
+                    change_amt = 0.0
+                    change_pct = 0.0
                 
                 invested = shares * cost
                 current_val = shares * live_price
@@ -184,6 +193,7 @@ with tab1:
                 
                 portfolio_data.append({
                     "Market": market,
+                    "Name": name,
                     "Symbol": sym,
                     "Price": live_price,
                     "Change": change_amt,
@@ -201,7 +211,6 @@ with tab1:
             if portfolio_data:
                 total_change_twd = total_value_twd - total_invested_twd
                 total_change_pct = (total_change_twd / total_invested_twd * 100) if total_invested_twd > 0 else 0.0
-                today_gain_pct = (total_today_gain_twd / (total_value_twd - total_today_gain_twd) * 100) if (total_value_twd - total_today_gain_twd) > 0 else 0.0
                 
                 st.markdown(f"### 👁 NT$ {total_value_twd:,.0f} &nbsp;&nbsp; <span style='color:{'#00d26a' if total_change_twd >= 0 else '#f6465d'}; font-size:24px;'>{'↗' if total_change_twd >= 0 else '↘'} {total_change_twd:+,.0f} ({total_change_pct:+.2f}%) 總未實現</span>", unsafe_allow_html=True)
                 
@@ -210,6 +219,7 @@ with tab1:
                     w = ((item['Value'] * item['_multiplier']) / total_value_twd * 100) if total_value_twd > 0 else 0.0
                     display_list.append({
                         "市場": item['Market'],
+                        "名稱": item['Name'],
                         "Symbol": item['Symbol'],
                         "Price": f"{item['Price']:,.2f}",
                         "Change": f"{item['Change']:+.2f}",
@@ -404,3 +414,13 @@ with tab6:
                         st.info("### 🤖 AI 重點總結")
                         st.write(res.text)
             else: st.error("❌ 抓取失敗。")
+
+# 【分頁 7】記憶體產業
+with tab7:
+    st.subheader("💾 記憶體大廠指標股")
+    memory_tickers = {"美光 Micron": "MU", "南亞科": "2408.TW", "華邦電": "2344.TW", "威騰 WD": "WDC"}
+    selected_memory = st.selectbox("選擇記憶體指標：", list(memory_tickers.keys()))
+    if st.button("取得報價"):
+        res_dict = {}
+        fetch_yahoo_single(memory_tickers[selected_memory], res_dict)
+        if memory_tickers[selected_memory] in res_dict: st.metric(label=f"{selected_memory} 最新報價", value=f"{res_dict[memory_tickers[selected_memory]]['price']:.2f}")
