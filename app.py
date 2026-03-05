@@ -421,4 +421,7 @@ with tab6:
         qqqm_fv = (qqqm_shares * live_qqqm * ((1 + qqqm_m_rate) ** months)) + (qqqm_monthly * (((1 + qqqm_m_rate) ** months - 1) / qqqm_m_rate) if qqqm_m_rate > 0 else qqqm_monthly * months)
         
         tw_m_rate = (tw_rate / 100) / 12
-        tw_fv = (tw_shares * live_tw * ((1 + tw
+        tw_fv = (tw_shares * live_tw * ((1 + tw_m_rate) ** months)) + (tw_monthly * (((1 + tw_m_rate) ** months - 1) / tw_m_rate) if tw_m_rate > 0 else tw_monthly * months)
+
+        total_future_twd = (qqqm_fv * exchange_rate) + tw_fv
+        st.error(f"🎉 **{invest_years} 年後總資產預估達：NT$ {total_future_twd:,.0f}**")
