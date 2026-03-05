@@ -341,4 +341,117 @@ with tab4:
             if not api_key: st.warning("請先輸入 API Key！")
             elif not yt_url: st.warning("請貼上網址！")
             else:
-                video_id = get_yt_video_id(yt_url
+                video_id = get_yt_video_id(yt_url)
+                if video_id:
+                    with st.spinner("🕵️‍♂️ 正在掃描可用字幕..."):
+                        try:
+                            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                            transcript = None
+                            try: transcript = transcript_list.find_transcript(['zh-TW', 'zh-Hant', 'zh', 'zh-Hans']).fetch()
+                            except:
+                                for t in transcript_list:
+                                    transcript = t.translate('zh-Hant').fetch()
+                                    break
+                            if transcript:
+                                full_text = " ".join([t['text'] for t in transcript])
+                                with st.spinner("🤖 字幕擷取成功！AI 正在提煉總結..."):
+                                    genai.configure(api_key=api_key)
+                                    prompt = f"請幫我過濾閒聊，用專業的「繁體中文」條列整理：\n1. 宏觀經濟與大盤觀點\n2. 點名的產業與個股\n3. 潛在風險與操作建議\n\n字幕內容：{full_text}"
+                                    res = genai.GenerativeModel('gemini-2.5-flash').generate_content(prompt)
+                                    st.success("✅ 重點提煉完成！")
+                                    st.write(res.text)
+                            else: st.error("❌ 找不到字幕。")
+                        except Exception as e: st.error(f"❌ 抓取失敗！詳細原因：{str(e)}")
+                else: st.error("❌ 網址格式錯誤。")
+    else:
+        fb_post = st.text_area("📝 請貼上 Facebook 貼文內容：", height=200)
+        if st.button("🎯 分析貼文重點"):
+            if api_key and fb_post:
+                with st.spinner("🤖 AI 分析中..."):
+                    genai.configure(api_key=api_key)
+                    res = genai.GenerativeModel('gemini-2.5-flash').generate_content(f"請精煉貼文：1.核心觀點 2.數據與邏輯 3.提到標的 4.結論\n\n{fb_post}")
+                    st.write(res.text)
+
+# 【分頁 5】全市場即時儀表板
+with tab5:
+    st.subheader("🪙 全市場即時儀表板 (Crypto & 美股)")
+    pionex_tokens = {"Bitcoin (BTC)": "BTC_USDT", "Ethereum (ETH)": "ETH_USDT", "Cardano (ADA)": "ADA_USDT"}
+    yahoo_groups = {
+        "💻 科技巨頭與半導體": {"英偉達 (NVDA)": "NVDA", "特斯拉 (TSLA)": "TSLA", "蘋果 (AAPL)": "AAPL", "微軟 (MSFT)": "MSFT", "美光 (MU)": "MU", "超微 (AMD)": "AMD", "台積電 (TSM)": "TSM"},
+        "🥇 貴金屬與能源": {"黃金期貨 (GC=F)": "GC=F", "白銀期貨 (SI=F)": "SI=F", "原油 (USO)": "USO"},
+        "📈 指數與 ETF": {"納斯達克 (QQQ)": "QQQ", "標普500 (SPY)": "SPY", "半導體 (SOXX)": "SOXX"}
+    }
+    @st.fragment(run_every="30s")
+    def auto_refresh_dual_engine():
+        pionex_data = {}
+        try:
+            res = requests.get("https://api.pionex.com/api/v1/market/tickers", timeout=5)
+            for t in res.json().get('data', {}).get('tickers', []): pionex_data[t['symbol']] = t
+        except: pass
+        with st.expander("🌟 主流加密貨幣 (來源：Pionex)", expanded=True):
+            cols = st.columns(3)
+            for idx, (label, symbol) in enumerate(pionex_tokens.items()):
+                crypto = pionex_data.get(symbol)
+                if crypto: cols[idx % 3].metric(label, f"${float(crypto.get('close', 0)):,.2f}", f"{float(crypto.get('change24h', 0))*100:.2f}%")
+        
+        all_yahoo = [sym for group in yahoo_groups.values() for sym in group.values()]
+        yahoo_data = get_yahoo_bulk_threaded(all_yahoo)
+        for group_name, tokens in yahoo_groups.items():
+            with st.expander(f"{group_name} (來源：Yahoo實時)"):
+                cols = st.columns(4)
+                for idx, (label, symbol) in enumerate(tokens.items()):
+                    stock = yahoo_data.get(symbol)
+                    if stock and stock['price'] > 0:
+                        fmt_price = f"${stock['price']:,.4f}" if stock['price'] < 1 else f"${stock['price']:,.2f}"
+                        cols[idx % 4].metric(label, fmt_price, f"{stock['change_pct']:.2f}%")
+    auto_refresh_dual_engine()
+
+# 【分頁 6】投資計畫與超級複利試算機
+with tab6:
+    st.subheader("⭐ 長期投資計畫與超級複利試算機")
+    
+    live_usd_twd_calc = 32.50
+    try:
+        usd_res_calc = {}
+        fetch_yahoo_single("USDTWD=X", usd_res_calc)
+        if "USDTWD=X" in usd_res_calc and usd_res_calc["USDTWD=X"]['price'] > 0:
+            live_usd_twd_calc = usd_res_calc["USDTWD=X"]['price']
+    except: pass
+
+    live_qqqm, live_tw = 0.0, 0.0
+    with st.spinner("抓取價格中..."):
+        try:
+            res_dict = {}
+            fetch_yahoo_single("QQQM", res_dict)
+            fetch_yahoo_single("009816.TW", res_dict)
+            live_qqqm = res_dict.get("QQQM", {}).get("price", 0.0)
+            live_tw = res_dict.get("009816.TW", {}).get("price", 0.0)
+        except: pass
+
+    if live_qqqm and live_tw:
+        col_inv1, col_inv2 = st.columns(2)
+        with col_inv1:
+            qqqm_shares = st.number_input("持有 QQQM 股數 (試算用)：", value=0.0, step=0.1)
+        with col_inv2:
+            tw_shares = st.number_input("持有 009816 股數 (試算用)：", value=0.0, step=1.0)
+        
+        exchange_rate = st.number_input("美金匯率 (自動更新)：", value=float(live_usd_twd_calc))
+        
+        invest_years = st.slider("預計投資年限 (年)：", 1, 40, 20)
+        col_calc1, col_calc2 = st.columns(2)
+        with col_calc1:
+            qqqm_monthly = st.number_input("每月投入 QQQM (USD)：", value=40, step=10)
+            qqqm_rate = st.number_input("QQQM 預估年化報酬率 (%)：", value=10.0)
+        with col_calc2:
+            tw_monthly = st.number_input("每月投入 009816 (TWD)：", value=24375, step=1000)
+            tw_rate = st.number_input("009816 預估年化報酬率 (%)：", value=8.0)
+
+        months = invest_years * 12
+        qqqm_m_rate = (qqqm_rate / 100) / 12
+        qqqm_fv = (qqqm_shares * live_qqqm * ((1 + qqqm_m_rate) ** months)) + (qqqm_monthly * (((1 + qqqm_m_rate) ** months - 1) / qqqm_m_rate) if qqqm_m_rate > 0 else qqqm_monthly * months)
+        
+        tw_m_rate = (tw_rate / 100) / 12
+        tw_fv = (tw_shares * live_tw * ((1 + tw_m_rate) ** months)) + (tw_monthly * (((1 + tw_m_rate) ** months - 1) / tw_m_rate) if tw_m_rate > 0 else tw_monthly * months)
+
+        total_future_twd = (qqqm_fv * exchange_rate) + tw_fv
+        st.error(f"🎉 **{invest_years} 年後總資產預估達：NT$ {total_future_twd:,.0f}**")
