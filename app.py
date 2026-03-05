@@ -6,8 +6,10 @@ import google.generativeai as genai
 import threading 
 from youtube_transcript_api import YouTubeTranscriptApi
 import pandas as pd
+import email.utils # 新增：用來解析新聞時間
+from datetime import timezone, timedelta # 新增：用來轉換台灣時區
 
-# --- 1. 新聞抓取模組 ---
+# --- 1. 新聞抓取模組 (加入時間解析) ---
 def get_google_news(query):
     encoded_query = urllib.parse.quote(query)
     url = f"https://news.google.com/rss/search?q={encoded_query}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
@@ -19,7 +21,20 @@ def get_google_news(query):
         for item in root.findall('./channel/item'):
             title = item.find('title').text
             link = item.find('link').text
-            news_list.append({'title': title, 'link': link})
+            
+            # 解析發布時間並轉換為台灣時間 (GMT+8)
+            pub_date_str = "未知日期"
+            pub_date_tag = item.find('pubDate')
+            if pub_date_tag is not None:
+                try:
+                    parsed_date = email.utils.parsedate_to_datetime(pub_date_tag.text)
+                    tw_tz = timezone(timedelta(hours=8))
+                    tw_time = parsed_date.astimezone(tw_tz)
+                    pub_date_str = tw_time.strftime("%Y-%m-%d %H:%M")
+                except:
+                    pub_date_str = pub_date_tag.text
+
+            news_list.append({'title': title, 'link': link, 'date': pub_date_str})
             if len(news_list) >= 10: break
         return news_list
     except: return None
@@ -103,7 +118,6 @@ with tab1:
     
     with st.expander("💾 存檔與讀檔 (防網頁重置備份區)", expanded=True):
         st.info("由於免費雲端主機會在重新整理後重置資料，您可以將修改完的配置『下載』成存檔。下次打開網頁時，只要『上傳』就能瞬間恢復您的專屬配置！")
-        
         col_save, col_load = st.columns(2)
         with col_save:
             us_dl = st.session_state.us_df_v2.copy(); us_dl['市場分類'] = '美股'
@@ -111,14 +125,7 @@ with tab1:
             cr_dl = st.session_state.crypto_df_v2.copy(); cr_dl['市場分類'] = '加密貨幣'
             master_dl = pd.concat([us_dl, tw_dl, cr_dl], ignore_index=True)
             csv_data = master_dl.to_csv(index=False).encode('utf-8-sig')
-            
-            st.download_button(
-                label="⬇️ 下載最新資產存檔 (CSV)",
-                data=csv_data,
-                file_name="my_portfolio_save.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
+            st.download_button(label="⬇️ 下載最新資產存檔 (CSV)", data=csv_data, file_name="my_portfolio_save.csv", mime="text/csv", use_container_width=True)
             
         with col_load:
             uploaded_file = st.file_uploader("📂 上傳資產存檔以覆蓋還原：", type="csv", label_visibility="collapsed")
@@ -284,7 +291,6 @@ with tab1:
 with tab2:
     st.subheader("📖 Seeking Alpha AI 專業閱讀助理")
     
-    # 🌟 建立專屬記憶體與清空按鈕的回呼函數 (Callback)
     if "sa_text_input" not in st.session_state:
         st.session_state.sa_text_input = ""
         
@@ -295,12 +301,10 @@ with tab2:
     with col_sa2:
         st.info("💡 **優化指南**\n\n1. 複製 SA 文章全文\n2. 選擇分析側重點\n3. 點擊生成報告")
         focus_area = st.selectbox("🎯 選擇分析側重點：", ["全面平衡分析 (預設)", "偏重看多與護城河分析", "偏重看空與財報風險預警"])
-        st.write("") # 版面留白
-        # 🌟 綁定清空按鈕
+        st.write("")
         st.button("🗑️ 一鍵清空文章", on_click=clear_sa_text, use_container_width=True)
         
     with col_sa1:
-        # 🌟 綁定輸入框與記憶體
         sa_article = st.text_area("📝 請在此貼上 Seeking Alpha 文章內容：", height=250, key="sa_text_input")
     
     if st.button("🚀 AI 深度解析 SA 文章", use_container_width=True):
@@ -321,7 +325,7 @@ with tab2:
                     st.write(res.text)
                 except Exception as e: st.error(f"❌ AI 解析失敗：{e}")
 
-# 【分頁 3】產業新聞與 AI 總結
+# 【分頁 3】產業新聞與 AI 總結 (包含時間戳記)
 with tab3:
     st.subheader("📰 產業新聞與 AI 總結")
     search_query = st.text_input("🔍 查詢產業或公司：", "例如：特斯拉 最新財報與表現")
@@ -331,7 +335,8 @@ with tab3:
             if news_data:
                 news_text = ""
                 for idx, news in enumerate(news_data):
-                    st.markdown(f"**{idx + 1}. [{news['title']}]({news['link']})**")
+                    # 🌟 這裡把發布時間印在新聞標題旁邊
+                    st.markdown(f"**{idx + 1}. [{news['title']}]({news['link']})** ⏱️ `{news['date']}`")
                     news_text += f"- {news['title']}\n"
                 if api_key:
                     with st.spinner("🤖 AI 正在提煉重點..."):
