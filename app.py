@@ -6,10 +6,10 @@ import google.generativeai as genai
 import threading 
 from youtube_transcript_api import YouTubeTranscriptApi
 import pandas as pd
-import email.utils # 新增：用來解析新聞時間
-from datetime import timezone, timedelta # 新增：用來轉換台灣時區
+import email.utils
+from datetime import timezone, timedelta
 
-# --- 1. 新聞抓取模組 (加入時間解析) ---
+# --- 1. 新聞抓取模組 (包含時間解析) ---
 def get_google_news(query):
     encoded_query = urllib.parse.quote(query)
     url = f"https://news.google.com/rss/search?q={encoded_query}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
@@ -22,7 +22,6 @@ def get_google_news(query):
             title = item.find('title').text
             link = item.find('link').text
             
-            # 解析發布時間並轉換為台灣時間 (GMT+8)
             pub_date_str = "未知日期"
             pub_date_tag = item.find('pubDate')
             if pub_date_tag is not None:
@@ -325,7 +324,7 @@ with tab2:
                     st.write(res.text)
                 except Exception as e: st.error(f"❌ AI 解析失敗：{e}")
 
-# 【分頁 3】產業新聞與 AI 總結 (包含時間戳記)
+# 【分頁 3】產業新聞與 AI 總結
 with tab3:
     st.subheader("📰 產業新聞與 AI 總結")
     search_query = st.text_input("🔍 查詢產業或公司：", "例如：特斯拉 最新財報與表現")
@@ -335,7 +334,6 @@ with tab3:
             if news_data:
                 news_text = ""
                 for idx, news in enumerate(news_data):
-                    # 🌟 這裡把發布時間印在新聞標題旁邊
                     st.markdown(f"**{idx + 1}. [{news['title']}]({news['link']})** ⏱️ `{news['date']}`")
                     news_text += f"- {news['title']}\n"
                 if api_key:
@@ -388,14 +386,15 @@ with tab4:
                     res = genai.GenerativeModel('gemini-2.5-flash').generate_content(f"請精煉貼文：1.核心觀點 2.數據與邏輯 3.提到標的 4.結論\n\n{fb_post}")
                     st.write(res.text)
 
-# 【分頁 5】全市場即時儀表板
+# 【分頁 5】全市場即時儀表板 (🌟 終極擴充：加入戰爭避險與航運板塊)
 with tab5:
     st.subheader("🪙 全市場即時儀表板 (Crypto & 美股)")
     pionex_tokens = {"Bitcoin (BTC)": "BTC_USDT", "Ethereum (ETH)": "ETH_USDT", "Cardano (ADA)": "ADA_USDT"}
     yahoo_groups = {
-        "💻 科技巨頭與半導體": {"英偉達 (NVDA)": "NVDA", "特斯拉 (TSLA)": "TSLA", "蘋果 (AAPL)": "AAPL", "微軟 (MSFT)": "MSFT", "美光 (MU)": "MU", "超微 (AMD)": "AMD", "台積電 (TSM)": "TSM"},
-        "🥇 貴金屬與能源": {"黃金期貨 (GC=F)": "GC=F", "白銀期貨 (SI=F)": "SI=F", "原油 (USO)": "USO"},
-        "📈 指數與 ETF": {"納斯達克 (QQQ)": "QQQ", "標普500 (SPY)": "SPY", "半導體 (SOXX)": "SOXX"}
+        "💻 科技與半導體 (Tech)": {"輝達 (NVDA)": "NVDA", "特斯拉 (TSLA)": "TSLA", "蘋果 (AAPL)": "AAPL", "微軟 (MSFT)": "MSFT", "美光 (MU)": "MU", "超微 (AMD)": "AMD", "台積電 (TSM)": "TSM"},
+        "⚔️ 戰爭避險與能源 (Energy & Defense)": {"布蘭特原油 (BZ=F)": "BZ=F", "WTI原油 (CL=F)": "CL=F", "黃金期貨 (GC=F)": "GC=F", "白銀期貨 (SI=F)": "SI=F", "天然氣 (NG=F)": "NG=F", "洛克希德馬丁 (LMT)": "LMT"},
+        "🚢 全球航運與散裝 (Shipping)": {"散裝BDI指數ETF (BDRY)": "BDRY", "星散海運 (SBLK)": "SBLK", "以星貨櫃 (ZIM)": "ZIM", "油輪運輸 (NAT)": "NAT"},
+        "📈 總經指數與 ETF (Index)": {"納斯達克 (QQQ)": "QQQ", "標普500 (SPY)": "SPY", "半導體 (SOXX)": "SOXX"}
     }
     @st.fragment(run_every="30s")
     def auto_refresh_dual_engine():
