@@ -84,12 +84,12 @@ st.title("📈 TSOU財經資訊中心")
 st.sidebar.header("⚙️ 系統設定")
 api_key = st.sidebar.text_input("輸入 Gemini API Key (啟動 AI):", type="password").strip()
 
-# --- 3. 建立 6 大分頁 ---
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "💼 個人資產總覽", "📖 SA 助理", "📰 產業新聞", "🎧 KOL 提煉", "🪙 全市場儀表板", "⭐ 投資與試算"
+# --- 3. 建立 7 大分頁 (全新加入 個股深度健檢) ---
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "💼 個人資產總覽", "🏢 個股深度健檢", "📖 SA 助理", "📰 產業新聞", "🎧 KOL 提煉", "🪙 全市場儀表板", "⭐ 投資與試算"
 ])
 
-# 【分頁 1】💼 個人資產動態管理中心
+# 【分頁 1】💼 個人資產動態管理中心 (保留存檔讀檔系統)
 with tab1:
     st.subheader("💼 個人資產動態管理中心")
     
@@ -115,8 +115,7 @@ with tab1:
             '平均成本': [94780.0]
         })
     
-    with st.expander("💾 存檔與讀檔 (防網頁重置備份區)", expanded=True):
-        st.info("由於免費雲端主機會在重新整理後重置資料，您可以將修改完的配置『下載』成存檔。下次打開網頁時，只要『上傳』就能瞬間恢復您的專屬配置！")
+    with st.expander("💾 存檔與讀檔 (防網頁重置備份區)", expanded=False):
         col_save, col_load = st.columns(2)
         with col_save:
             us_dl = st.session_state.us_df_v2.copy(); us_dl['市場分類'] = '美股'
@@ -219,7 +218,6 @@ with tab1:
                 today_gain = shares * change_amt
                 total_gain = current_val - invested
                 total_gain_pct = (total_gain / invested * 100) if invested > 0 else 0.0
-                
                 multiplier = usd_to_twd if market in ['美股', '加密貨幣'] else 1.0
                 
                 total_invested_twd += (invested * multiplier)
@@ -227,20 +225,11 @@ with tab1:
                 total_today_gain_twd += (today_gain * multiplier)
                 
                 portfolio_data.append({
-                    "Market": market,
-                    "Name": name,
-                    "Symbol": sym,
-                    "Price": live_price,
-                    "Change": change_amt,
-                    "Change %": change_pct,
-                    "Shares": shares,
-                    "Cost": cost,
-                    "Today's Gain": today_gain,
-                    "Today's % Gain": change_pct, 
-                    "Total Change": total_gain,
-                    "Total % Change": total_gain_pct,
-                    "Value": current_val,
-                    "_multiplier": multiplier 
+                    "Market": market, "Name": name, "Symbol": sym, "Price": live_price,
+                    "Change": change_amt, "Change %": change_pct, "Shares": shares, "Cost": cost,
+                    "Today's Gain": today_gain, "Today's % Gain": change_pct, 
+                    "Total Change": total_gain, "Total % Change": total_gain_pct,
+                    "Value": current_val, "_multiplier": multiplier 
                 })
 
             if portfolio_data:
@@ -253,24 +242,14 @@ with tab1:
                 for item in portfolio_data:
                     w = ((item['Value'] * item['_multiplier']) / total_value_twd * 100) if total_value_twd > 0 else 0.0
                     currency_unit = " USD" if item['Market'] in ['美股', '加密貨幣'] else " TWD"
-
                     display_list.append({
-                        "市場": item['Market'],
-                        "名稱": item['Name'],
-                        "Symbol": item['Symbol'],
-                        "Price": f"{item['Price']:,.2f}",
-                        "Change": f"{item['Change']:+.2f}",
-                        "Change %": f"{item['Change %']:+.2f}%",
-                        "Weight": f"{w:.1f}%",
-                        "Shares": f"{item['Shares']:,.4f}",
-                        "Cost": f"{item['Cost']:,.2f}",
-                        "Today's Gain": f"{item['Today\'s Gain']:+.2f}",
-                        "Today's % Gain": f"{item['Today\'s % Gain']:+.2f}%",
-                        "Total Change": f"{item['Total Change']:+.2f}",
-                        "Total % Change": f"{item['Total % Change']:+.2f}%",
+                        "市場": item['Market'], "名稱": item['Name'], "Symbol": item['Symbol'],
+                        "Price": f"{item['Price']:,.2f}", "Change": f"{item['Change']:+.2f}", "Change %": f"{item['Change %']:+.2f}%",
+                        "Weight": f"{w:.1f}%", "Shares": f"{item['Shares']:,.4f}", "Cost": f"{item['Cost']:,.2f}",
+                        "Today's Gain": f"{item['Today\'s Gain']:+.2f}", "Today's % Gain": f"{item['Today\'s % Gain']:+.2f}%",
+                        "Total Change": f"{item['Total Change']:+.2f}", "Total % Change": f"{item['Total % Change']:+.2f}%",
                         "Value": f"{item['Value']:,.2f}{currency_unit}"
                     })
-                
                 df_display = pd.DataFrame(display_list)
                 
                 def color_positive_negative(val):
@@ -279,15 +258,72 @@ with tab1:
                         if val.startswith('-'): return 'color: #f6465d; font-weight: bold;'
                     return ''
                 
-                styled_df = df_display.style.map(
-                    color_positive_negative, 
-                    subset=["Change", "Change %", "Today's Gain", "Today's % Gain", "Total Change", "Total % Change"]
-                )
-                
+                styled_df = df_display.style.map(color_positive_negative, subset=["Change", "Change %", "Today's Gain", "Today's % Gain", "Total Change", "Total % Change"])
                 st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
-# 【分頁 2】Seeking Alpha AI 專業助理
+# 【分頁 2】🌟 全新：個股深度健檢與產業鏈分析 🌟
 with tab2:
+    st.subheader("🏢 個股深度健檢與產業鏈分析")
+    st.markdown("輸入公司名稱或代號，AI 將自動抓取最新新聞，並為您一鍵生成法規級的深度基本面報告！")
+    
+    col_c1, col_c2 = st.columns([3, 1])
+    with col_c1:
+        target_stock = st.text_input("🔍 請輸入想健檢的股票代號或公司名稱：", "例如：NVDA 或 台積電")
+    with col_c2:
+        st.write("")
+        st.write("")
+        analyze_btn = st.button("🚀 生成深度健檢報告", type="primary", use_container_width=True)
+
+    if analyze_btn:
+        if not api_key:
+            st.warning("⚠️ 請先在左側輸入 API Key！")
+        elif not target_stock or target_stock == "例如：NVDA 或 台積電":
+            st.warning("⚠️ 請輸入有效的公司名稱！")
+        else:
+            # 1. 先去 Google 抓取近幾天的最新財報與政策新聞 (RAG 檢索增強)
+            with st.spinner(f"📡 正在為您搜集全網關於 {target_stock} 的最新財報與政策情報..."):
+                stock_news = get_google_news(f"{target_stock} 財報 OR 政策 OR 供應鏈")
+                news_context = ""
+                if stock_news:
+                    for n in stock_news[:6]: # 取前6條最相關的
+                        news_context += f"- {n['title']} (時間: {n['date']})\n"
+                else:
+                    news_context = "無近期重大新聞"
+
+            # 2. 呼叫 Gemini 進行結構化深度分析
+            with st.spinner("🤖 華爾街 AI 首席分析師正在彙整數據並撰寫報告，請稍候..."):
+                try:
+                    genai.configure(api_key=api_key)
+                    prompt = f"""
+                    你現在是一位頂尖的華爾街與台股資深分析師。請針對「{target_stock}」這家公司，提供一份結構化的深度健檢報告。
+                    
+                    【最新市場情報參考】(這是剛剛為您抓取的最新新聞，請將其融入分析中)：
+                    {news_context}
+
+                    請使用專業的「繁體中文」，並嚴格按照以下 5 大區塊進行條列式深度分析：
+                    
+                    1. 🏭 【公司業務與核心護城河】：他們主要靠什麼賺錢？營收佔比最高的是什麼？最大的競爭優勢(護城河)在哪？
+                    2. 🔗 【上下游產業鏈與主力客戶】：他們上游原物料/設備跟哪家公司拿貨？下游主力客戶有哪些大廠？(請具體列出關聯公司名稱)
+                    3. 📊 【近期財報表現分析】：根據最新數據或市場預期，近一季營收與毛利率表現如何？盈餘是否有超乎預期？
+                    4. 📈 【估值位階 (PE/PEG 分析)】：評估其目前的歷史本益比(PE)河流圖位階是偏高、合理還是偏低？若考慮其成長性，PEG (本益成長比) 表現如何？
+                    5. 📢 【政策影響與最新催化劑】：近期是否有國內外政府政策(如關稅、補貼、禁令)影響該公司？未來一季有什麼即將發生的重要事件或催化劑？
+                    """
+                    res = genai.GenerativeModel('gemini-2.5-flash').generate_content(prompt)
+                    
+                    st.success(f"✅ {target_stock} 深度報告生成完畢！")
+                    
+                    # 使用 expander 顯示 AI 看的新聞參考來源
+                    with st.expander("📰 點此查看 AI 參考的即時新聞來源"):
+                        st.markdown(news_context)
+                        
+                    st.divider()
+                    st.markdown(res.text)
+                    
+                except Exception as e:
+                    st.error(f"❌ 報告生成失敗：{e}")
+
+# 【分頁 3】Seeking Alpha AI 專業助理
+with tab3:
     st.subheader("📖 Seeking Alpha AI 專業閱讀助理")
     
     if "sa_text_input" not in st.session_state:
@@ -324,8 +360,8 @@ with tab2:
                     st.write(res.text)
                 except Exception as e: st.error(f"❌ AI 解析失敗：{e}")
 
-# 【分頁 3】產業新聞與 AI 總結
-with tab3:
+# 【分頁 4】產業新聞與 AI 總結
+with tab4:
     st.subheader("📰 產業新聞與 AI 總結")
     search_query = st.text_input("🔍 查詢產業或公司：", "例如：特斯拉 最新財報與表現")
     if st.button("取得最新消息與 AI 總結"):
@@ -344,8 +380,8 @@ with tab3:
                         st.write(res.text)
             else: st.error("❌ 抓取失敗。")
 
-# 【分頁 4】財經 KOL 影音/貼文提煉引擎
-with tab4:
+# 【分頁 5】財經 KOL 影音/貼文提煉引擎
+with tab5:
     st.subheader("🎧 財經 KOL 重點提煉引擎")
     source_type = st.radio("請選擇您要提煉的資訊來源：", ["🎥 YouTube 影片網址 (自動擷取字幕)", "📝 Facebook 貼文 (手動複製貼上)"])
     
@@ -386,8 +422,8 @@ with tab4:
                     res = genai.GenerativeModel('gemini-2.5-flash').generate_content(f"請精煉貼文：1.核心觀點 2.數據與邏輯 3.提到標的 4.結論\n\n{fb_post}")
                     st.write(res.text)
 
-# 【分頁 5】全市場即時儀表板 (🌟 終極擴充：加入戰爭避險與航運板塊)
-with tab5:
+# 【分頁 6】全市場即時儀表板
+with tab6:
     st.subheader("🪙 全市場即時儀表板 (Crypto & 美股)")
     pionex_tokens = {"Bitcoin (BTC)": "BTC_USDT", "Ethereum (ETH)": "ETH_USDT", "Cardano (ADA)": "ADA_USDT"}
     yahoo_groups = {
@@ -421,8 +457,8 @@ with tab5:
                         cols[idx % 4].metric(label, fmt_price, f"{stock['change_pct']:.2f}%")
     auto_refresh_dual_engine()
 
-# 【分頁 6】投資計畫與超級複利試算機
-with tab6:
+# 【分頁 7】投資計畫與超級複利試算機
+with tab7:
     st.subheader("⭐ 長期投資計畫與超級複利試算機")
     
     live_usd_twd_calc = 32.50
