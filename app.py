@@ -709,7 +709,7 @@ with tab8:
         voo_fv = (voo_shares * live_voo * ((1 + voo_m_rate) ** months)) + (voo_monthly * (((1 + voo_m_rate) ** months - 1) / voo_m_rate) if voo_m_rate > 0 else voo_monthly * months)
 
         tw_m_rate = (tw_rate / 100) / 12
-        tw_fv = (tw_shares * live_tw * ((1 + tw_m_rate) ** months)) + (tw_monthly * (((1 + tw_m_m_rate) ** months - 1) / tw_m_rate) if tw_m_rate > 0 else tw_monthly * months)
+        tw_fv = (tw_shares * live_tw * ((1 + tw_m_rate) ** months)) + (tw_monthly * (((1 + tw_m_rate) ** months - 1) / tw_m_rate) if tw_m_rate > 0 else tw_monthly * months)
 
         total_future_twd = ((qqqm_fv + voo_fv) * exchange_rate) + tw_fv
         st.success(f"🎉 **{invest_years} 年後，三引擎總資產預估可達：NT$ {total_future_twd:,.0f}**")
@@ -783,4 +783,5 @@ with tab9:
                     st.session_state.notes_df_v3 = pd.read_csv(uploaded_notes)
                     if 'notion_editor' in st.session_state:
                         del st.session_state['notion_editor']
+
                     st.rerun()
