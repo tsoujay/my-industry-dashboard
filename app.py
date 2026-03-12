@@ -104,7 +104,6 @@ def get_yahoo_bulk_threaded(symbols_list):
 
 st.title("📈 TSOU財經資訊中心")
 
-# 🌟 側邊欄設定與登出按鈕 (若沒看到請點擊左上角 `>` 展開)
 st.sidebar.header("⚙️ 系統設定")
 api_key = st.sidebar.text_input("輸入 Gemini API Key (啟動 AI):", type="password").strip()
 
@@ -113,17 +112,16 @@ if st.sidebar.button("🚪 登出系統", use_container_width=True):
     st.session_state.logged_in = False
     st.rerun()
 
-# 🌟 重新排列的 9 大分頁 (把財報行事曆移到第 3 位)
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
-    "💼 個人資產總覽",     # 1
-    "🪙 籌碼與大盤儀表板", # 2
-    "📅 財報行事曆",      # 3 (🔥 移到這裡了！)
-    "🏢 個股深度健檢",     # 4
-    "📖 SA 助理",         # 5
-    "📰 產業新聞",         # 6
-    "🎧 KOL 提煉",        # 7
-    "⭐ 投資與試算",       # 8
-    "📚 閱讀筆記"         # 9
+    "💼 個人資產總覽",     
+    "🪙 籌碼與大盤儀表板", 
+    "📅 財報行事曆",      
+    "🏢 個股深度健檢",     
+    "📖 SA 助理",         
+    "📰 產業新聞",         
+    "🎧 KOL 提煉",        
+    "⭐ 投資與試算",       
+    "📚 閱讀筆記"         
 ])
 
 # 【分頁 1】💼 個人資產動態管理中心
@@ -390,7 +388,7 @@ with tab2:
                     try:
                         genai.configure(api_key=api_key)
                         chips_prompt = f"""你現在是一位專精台股籌碼面的分析師。以下是今日最新新聞標題：\n{chips_context}\n請幫我精準萃取出數據，並嚴格按照以下格式輸出（包含 Markdown 表格）：\n### 📊 一、三大法人買賣超金額 (單位：億元)\n(略...請自行畫出外資、投信、自營商表格)\n### 🐻 二、外資期權動向\n### 💰 三、大盤融資狀況\n### 💡 四、盤勢綜合判定"""
-                        res = genai.GenerativeModel('gemini-2.5-flash').generate_content(chips_prompt)
+                        res = genai.GenerativeModel('gemini-1.5-flash').generate_content(chips_prompt)
                         st.success("✅ 今日籌碼解析完成！")
                         st.markdown(res.text)
                         with st.expander("📰 點此查看 AI 參考的新聞原始資料"): st.markdown(chips_context)
@@ -440,7 +438,7 @@ with tab2:
                         cols[idx % 4].metric(label, fmt_price, f"{stock['change_pct']:.2f}%")
     auto_refresh_dual_engine()
 
-# 【分頁 3】📅 財報行事曆 (🔥 往前移到這裡！)
+# 【分頁 3】📅 財報行事曆
 with tab3:
     st.subheader("📅 每日財報與法說會追蹤")
     st.markdown("想知道今天或最近有哪些公司準備發布財報或舉辦法說會嗎？AI 將為您掃描全網新聞，並自動補充公司業務簡介！")
@@ -470,17 +468,14 @@ with tab3:
                     genai.configure(api_key=api_key)
                     prompt = f"""
                     你是一位專業的股市行程追蹤助理。請根據以下關於 {date_str} 的財經新聞標題，萃取出「預計在這幾天發布財報或舉辦法說會」的公司名單。
-                    
                     【新聞參考資料】：
                     {earnings_context if earnings_context else "無明確新聞，請調用您的知識庫或預測近期可能發布財報的重大公司。"}
-                    
                     請分類為「🇹🇼 台股法說會/財報」與「🇺🇸 美股財報」。
                     對於每一家提到的公司，請務必按照以下格式列出（請調用你的知識庫來補充業務簡介）：
                     - **[股票代號] 公司名稱**：(用一句話精準總結這家公司的核心業務與賺錢方式)。
-                    
                     如果新聞中完全沒有提到任何公司，請回覆：「根據目前的新聞資料，查無今日發布財報的重大公司。」
                     """
-                    res = genai.GenerativeModel('gemini-2.5-flash').generate_content(prompt)
+                    res = genai.GenerativeModel('gemini-1.5-flash').generate_content(prompt)
                     st.success(f"✅ {date_str} 財報行事曆整理完成！")
                     st.markdown(res.text)
                     
@@ -537,7 +532,7 @@ with tab4:
                         3. 📊 【最新季報與營收表現】
                         4. 📈 【估值位階 (PE/PEG 分析)】
                         5. 📢 【政策影響與最新催化劑】"""
-                        res = genai.GenerativeModel('gemini-2.5-flash').generate_content(prompt)
+                        res = genai.GenerativeModel('gemini-1.5-flash').generate_content(prompt)
                         st.success(f"✅ {target_stock} 深度報告生成完畢！")
                         with st.expander("📰 點此查看 AI 參考的即時新聞來源與時間"): st.markdown(news_context)
                         st.divider()
@@ -581,7 +576,7 @@ with tab4:
                         4. 🔗 【產業鏈位置與潛在威脅】：它們是直接競爭對手、上下游關係、還是互補？客戶重疊度高嗎？
                         5. 🏆 【終極總結與配置建議】：針對「穩健型」與「積極成長型」兩種投資人，你分別會給出什麼樣的買進建議？
                         """
-                        res = genai.GenerativeModel('gemini-2.5-flash').generate_content(vs_prompt)
+                        res = genai.GenerativeModel('gemini-1.5-flash').generate_content(vs_prompt)
                         st.success(f"✅ {stock_a} vs {stock_b} 對決報告生成完畢！")
                         st.divider()
                         st.markdown(res.text)
@@ -613,7 +608,7 @@ with tab5:
                     if focus_area == "偏重看多與護城河分析": focus_prompt = "請深度挖掘看好該公司的理由、競爭優勢。"
                     elif focus_area == "偏重看空與財報風險預警": focus_prompt = "請深度挖掘潛在風險、財報隱憂或劣勢。"
                     sa_prompt = f"請以「繁體中文」輸出以下重點：\n{focus_prompt}\n1. 🎯 【核心觀點】\n2. 🐂 【看多論點與護城河】\n3. 🐻 【看空論點與風險】\n4. 💡 【關鍵數據與催化劑】\n文章內容如下：\n{sa_article}"
-                    res = genai.GenerativeModel('gemini-2.5-flash').generate_content(sa_prompt)
+                    res = genai.GenerativeModel('gemini-1.5-flash').generate_content(sa_prompt)
                     st.success(f"✅ 解析完成！")
                     st.write(res.text)
                 except Exception as e: st.error(f"❌ AI 解析失敗：{e}")
@@ -633,7 +628,7 @@ with tab6:
                 if api_key:
                     with st.spinner("🤖 AI 正在提煉重點..."):
                         genai.configure(api_key=api_key)
-                        res = genai.GenerativeModel('gemini-2.5-flash').generate_content(f"請總結 3 個產業重點：\n\n{news_text}")
+                        res = genai.GenerativeModel('gemini-1.5-flash').generate_content(f"請總結 3 個產業重點：\n\n{news_text}")
                         st.info("### 🤖 AI 重點總結")
                         st.write(res.text)
             else: st.error("❌ 抓取失敗。")
@@ -654,7 +649,7 @@ with tab7:
             if api_key and fb_post:
                 with st.spinner("🤖 AI 分析中..."):
                     genai.configure(api_key=api_key)
-                    res = genai.GenerativeModel('gemini-2.5-flash').generate_content(f"這是一篇財經 KOL 的貼文。請精煉出：\n1. 核心觀點 \n2. 數據與邏輯 \n3. 提到的標的 \n4. 投資結論\n\n貼文內容：\n{fb_post}")
+                    res = genai.GenerativeModel('gemini-1.5-flash').generate_content(f"這是一篇財經 KOL 的貼文。請精煉出：\n1. 核心觀點 \n2. 數據與邏輯 \n3. 提到的標的 \n4. 投資結論\n\n貼文內容：\n{fb_post}")
                     st.success("✅ 分析完成！")
                     st.write(res.text)
             else: st.warning("⚠️ 請先輸入 API Key 並貼上文字內容！")
@@ -744,7 +739,7 @@ with tab9:
                 with st.spinner("正在為您淬鍊知識..."):
                     genai.configure(api_key=api_key)
                     prompt = f"這是一段書本摘錄。請用精煉的繁體中文列出：\n1. 💡 核心觀點 (一句話總結)\n2. 🔑 關鍵金句 (請用列點方式列出最精華的幾句話)\n\n內容：\n{book_text}"
-                    res = genai.GenerativeModel('gemini-2.5-flash').generate_content(prompt)
+                    res = genai.GenerativeModel('gemini-1.5-flash').generate_content(prompt)
                     st.info(res.text)
             else:
                 st.warning("請先輸入 API Key 並貼上內容！")
