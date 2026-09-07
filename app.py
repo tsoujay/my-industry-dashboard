@@ -653,5 +653,3 @@ with tab6:
 
         total_future_twd = ((qqqm_fv + voo_fv) * exchange_rate) + tw_fv
         st.success(f"🎉 **{invest_years} 年後，三引擎總資產預估可達：NT$ {total_future_twd:,.0f}**")
-
-```
