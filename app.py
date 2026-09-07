@@ -112,16 +112,14 @@ if st.sidebar.button("🚪 登出系統", use_container_width=True):
     st.session_state.logged_in = False
     st.rerun()
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+# 🗑️ 精簡版分頁設定
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "💼 個人資產總覽",     
     "🪙 籌碼與大盤儀表板", 
-    "📅 財報行事曆",      
     "🏢 個股深度健檢",     
     "📖 SA 助理",         
     "📰 產業新聞",         
-    "🎧 KOL 提煉",        
-    "⭐ 投資與試算",       
-    "📚 閱讀筆記"         
+    "⭐ 投資與試算"       
 ])
 
 # 【分頁 1】💼 個人資產動態管理中心
@@ -360,10 +358,10 @@ with tab1:
                     if 'hist_editor' in st.session_state: del st.session_state['hist_editor']
                     st.rerun()
 
-# 【分頁 2】🪙 籌碼與大盤儀表板
+# 【分頁 2】🪙 籌碼與大盤儀表板 (🌟 已新增美日公債殖利率區塊)
 with tab2:
     st.subheader("🪙 全市場即時大盤與台股籌碼戰報")
-    st.markdown("### 🇹🇼 今日台股籌碼戰報 (三大法人/期貨/融令人)")
+    st.markdown("### 🇹🇼 今日台股籌碼戰報 (三大法人/期貨/融資)")
     st.caption("透過 AI 閱讀全網最新財經新聞，一鍵萃取今日所有籌碼數據！(建議下午 3:30 以後使用)")
     
     if st.button("🔄 啟動 AI 戰情室：一鍵生成今日籌碼總結", type="primary"):
@@ -387,7 +385,6 @@ with tab2:
                 with st.spinner("🤖 AI 正在繪製法人買賣超表格與籌碼解析..."):
                     try:
                         genai.configure(api_key=api_key)
-                        # 🔥 已修復：恢復為最新穩定的 gemini-2.5-flash！
                         chips_prompt = f"""你現在是一位專精台股籌碼面的分析師。以下是今日最新新聞標題：\n{chips_context}\n請幫我精準萃取出數據，並嚴格按照以下格式輸出（包含 Markdown 表格）：\n### 📊 一、三大法人買賣超金額 (單位：億元)\n(略...請自行畫出外資、投信、自營商表格)\n### 🐻 二、外資期權動向\n### 💰 三、大盤融資狀況\n### 💡 四、盤勢綜合判定"""
                         res = genai.GenerativeModel('gemini-2.5-flash').generate_content(chips_prompt)
                         st.success("✅ 今日籌碼解析完成！")
@@ -397,12 +394,15 @@ with tab2:
 
     st.markdown("---")
     pionex_tokens = {"Bitcoin (BTC)": "BTC_USDT", "Ethereum (ETH)": "ETH_USDT", "Cardano (ADA)": "ADA_USDT"}
+    
+    # 🌟 在此新增殖利率與自訂群組
     yahoo_groups = {
-        "💻 科技與半導體 (Tech)": {"輝達 (NVDA)": "NVDA", "特斯拉 (TSLA)": "TSLA", "蘋果 (AAPL)": "AAPL", "微軟 (MSFT)": "MSFT", "美光 (MU)": "MU", "超微 (AMD)": "AMD", "台積電 (TSM)": "TSM"},
-        "⚔️ 戰爭避險與能源 (Energy & Defense)": {"布蘭特原油 (BZ=F)": "BZ=F", "WTI原油 (CL=F)": "CL=F", "黃金期貨 (GC=F)": "GC=F", "白銀期貨 (SI=F)": "SI=F", "天然氣 (NG=F)": "NG=F", "洛克希德馬丁 (LMT)": "LMT"},
-        "🚢 全球航運與散裝 (Shipping)": {"散裝BDI指數ETF (BDRY)": "BDRY", "星散海運 (SBLK)": "SBLK", "以星貨櫃 (ZIM)": "ZIM", "油輪運輸 (NAT)": "NAT"},
+        "💻 科技與半導體 (Tech)": {"輝達 (NVDA)": "NVDA", "特斯拉 (TSLA)": "TSLA", "蘋果 (AAPL)": "AAPL", "微軟 (MSFT)": "MSFT", "台積電 (TSM)": "TSM"},
+        "🏛️ 美日公債殖利率 (Yields)": {"美債10年期 (^TNX)": "^TNX", "美債20年期 (^TYX)": "^TYX", "美債5年期 (^FVX)": "^FVX", "美債13週 (^IRX)": "^IRX", "日債10年期 (JP10Y.B)": "JP10Y.B", "日債2年期 (JP2Y.B)": "JP2Y.B"},
+        "⚔️ 戰爭避險與能源 (Energy & Defense)": {"布蘭特原油 (BZ=F)": "BZ=F", "黃金期貨 (GC=F)": "GC=F", "天然氣 (NG=F)": "NG=F", "洛克希德馬丁 (LMT)": "LMT"},
         "📈 總經指數與 ETF (Index)": {"納斯達克 (QQQ)": "QQQ", "標普500 (SPY)": "SPY", "半導體 (SOXX)": "SOXX"}
     }
+    
     @st.fragment(run_every="30s")
     def auto_refresh_dual_engine():
         pionex_data = {}
@@ -435,58 +435,17 @@ with tab2:
                 for idx, (label, symbol) in enumerate(tokens.items()):
                     stock = yahoo_data.get(symbol)
                     if stock and stock['price'] > 0:
-                        fmt_price = f"${stock['price']:,.4f}" if stock['price'] < 1 else f"${stock['price']:,.2f}"
+                        # 🌟 自動判斷是否為殖利率，移除 $ 符號並改為 %
+                        is_yield = "Yields" in group_name
+                        prefix = "" if is_yield else "$"
+                        suffix = "%" if is_yield else ""
+                        fmt_price = f"{prefix}{stock['price']:,.3f}{suffix}" if stock['price'] < 1 else f"{prefix}{stock['price']:,.2f}{suffix}"
+                        
                         cols[idx % 4].metric(label, fmt_price, f"{stock['change_pct']:.2f}%")
     auto_refresh_dual_engine()
 
-# 【分頁 3】📅 財報行事曆
+# 【分頁 3 (原分頁4)】🏢 企業深度分析與雙股對決
 with tab3:
-    st.subheader("📅 每日財報與法說會追蹤")
-    st.markdown("想知道今天或最近有哪些公司準備發布財報或舉辦法說會嗎？AI 將為您掃描全網新聞，並自動補充公司業務簡介！")
-    
-    col_cal1, col_cal2 = st.columns([1, 2])
-    with col_cal1:
-        target_date = st.date_input("選擇查詢日期：", datetime.date.today())
-        fetch_earnings_btn = st.button("🔍 查詢當日財報發布公司", type="primary", use_container_width=True)
-        
-    if fetch_earnings_btn:
-        if not api_key:
-            st.warning("⚠️ 請先在左側輸入 API Key！")
-        else:
-            date_str = target_date.strftime("%Y-%m-%d")
-            date_str_tw = f"{target_date.month}月{target_date.day}日" 
-            
-            with st.spinner(f"📡 正在全網搜描 {date_str} 的台美股財報與法說會日程..."):
-                news_tw = get_google_news(f"台股 法說會 OR 財報發布 {date_str_tw}")
-                news_us = get_google_news(f"美股 earnings OR 財報 {date_str}")
-                
-                earnings_context = ""
-                for n in (news_tw or [])[:6]: earnings_context += f"- [台股] {n['title']}\n"
-                for n in (news_us or [])[:6]: earnings_context += f"- [美股] {n['title']}\n"
-                
-            with st.spinner("🤖 AI 正在整理名單並補充公司業務簡介..."):
-                try:
-                    genai.configure(api_key=api_key)
-                    prompt = f"""
-                    你是一位專業的股市行程追蹤助理。請根據以下關於 {date_str} 的財經新聞標題，萃取出「預計在這幾天發布財報或舉辦法說會」的公司名單。
-                    【新聞參考資料】：
-                    {earnings_context if earnings_context else "無明確新聞，請調用您的知識庫或預測近期可能發布財報的重大公司。"}
-                    請分類為「🇹🇼 台股法說會/財報」與「🇺🇸 美股財報」。
-                    對於每一家提到的公司，請務必按照以下格式列出（請調用你的知識庫來補充業務簡介）：
-                    - **[股票代號] 公司名稱**：(用一句話精準總結這家公司的核心業務與賺錢方式)。
-                    如果新聞中完全沒有提到任何公司，請回覆：「根據目前的新聞資料，查無今日發布財報的重大公司。」
-                    """
-                    res = genai.GenerativeModel('gemini-2.5-flash').generate_content(prompt)
-                    st.success(f"✅ {date_str} 財報行事曆整理完成！")
-                    st.markdown(res.text)
-                    
-                    with st.expander("📰 點此查看 AI 參考的新聞原始資料"):
-                        st.markdown(earnings_context if earnings_context else "無")
-                except Exception as e:
-                    st.error(f"❌ 查詢失敗：{e}")
-
-# 【分頁 4】🏢 企業深度分析與雙股對決
-with tab4:
     st.subheader("🏢 企業深度分析與雙股對決")
     analysis_mode = st.radio("請選擇分析模式：", ["🔍 單一個股深度健檢", "⚔️ 雙股競爭對決分析"], horizontal=True)
     
@@ -583,8 +542,8 @@ with tab4:
                         st.markdown(res.text)
                     except Exception as e: st.error(f"❌ 報告生成失敗：{e}")
 
-# 【分頁 5】Seeking Alpha AI 專業助理
-with tab5:
+# 【分頁 4 (原分頁5)】Seeking Alpha AI 專業助理
+with tab4:
     st.subheader("📖 Seeking Alpha AI 專業閱讀助理")
     if "sa_text_input" not in st.session_state: st.session_state.sa_text_input = ""
     def clear_sa_text(): st.session_state.sa_text_input = ""
@@ -614,8 +573,8 @@ with tab5:
                     st.write(res.text)
                 except Exception as e: st.error(f"❌ AI 解析失敗：{e}")
 
-# 【分頁 6】產業新聞與 AI 總結
-with tab6:
+# 【分頁 5 (原分頁6)】產業新聞與 AI 總結
+with tab5:
     st.subheader("📰 產業新聞與 AI 總結")
     search_query = st.text_input("🔍 查詢產業或公司：", "例如：特斯拉 最新財報與表現")
     if st.button("取得最新消息與 AI 總結"):
@@ -634,29 +593,8 @@ with tab6:
                         st.write(res.text)
             else: st.error("❌ 抓取失敗。")
 
-# 【分頁 7】財經 KOL 影音/貼文提煉引擎
-with tab7:
-    st.subheader("🎧 財經 KOL 雙核心提煉引擎")
-    col_kol1, col_kol2 = st.columns(2)
-    with col_kol1:
-        st.markdown("### 🎥 YouTube 影音 (強烈推薦 NotebookLM)")
-        st.info("💡 **終極解決方案**：強烈建議您使用 Google 推出的神器 **NotebookLM**，它可以無死角地「吃下」長達數小時的 Podcast！")
-        st.link_button("🚀 點此開啟 Google NotebookLM", "https://notebooklm.google.com/")
-        st.markdown("**【快速上手步驟】**\n1. 點擊上方按鈕進入 NotebookLM。\n2. 點擊「新增筆記本」>「新增來源」。\n3. 選擇「YouTube 網址」，貼上 KOL 影片連結。\n4. 等待幾秒後，即可詢問：*這集提到了哪些股票？看多還是看空？*")
-    with col_kol2:
-        st.markdown("### 📝 臉書貼文 / 節目文字筆記")
-        fb_post = st.text_area("請貼上貼文內容：", height=200, key="fb_post_input")
-        if st.button("🎯 分析文字重點", use_container_width=True):
-            if api_key and fb_post:
-                with st.spinner("🤖 AI 分析中..."):
-                    genai.configure(api_key=api_key)
-                    res = genai.GenerativeModel('gemini-2.5-flash').generate_content(f"這是一篇財經 KOL 的貼文。請精煉出：\n1. 核心觀點 \n2. 數據與邏輯 \n3. 提到的標的 \n4. 投資結論\n\n貼文內容：\n{fb_post}")
-                    st.success("✅ 分析完成！")
-                    st.write(res.text)
-            else: st.warning("⚠️ 請先輸入 API Key 並貼上文字內容！")
-
-# 【分頁 8】⭐ 投資計畫與超級複利試算機 
-with tab8:
+# 【分頁 6 (原分頁8)】⭐ 投資計畫與超級複利試算機 
+with tab6:
     st.subheader("⭐ 長期投資計畫與超級複利試算機")
     
     live_usd_twd_calc = 32.50
@@ -714,74 +652,3 @@ with tab8:
 
         total_future_twd = ((qqqm_fv + voo_fv) * exchange_rate) + tw_fv
         st.success(f"🎉 **{invest_years} 年後，三引擎總資產預估可達：NT$ {total_future_twd:,.0f}**")
-
-# 【分頁 9】📚 下拉收納式閱讀筆記
-with tab9:
-    st.subheader("📚 專屬第二大腦 (精華金句收納盒)")
-    
-    if 'notes_df_v3' not in st.session_state:
-        st.session_state.notes_df_v3 = pd.DataFrame({
-            '排序': [1, 2, 3],
-            '建立日期': [datetime.datetime.now().strftime("%Y-%m-%d")] * 3,
-            '書名或來源': ['致富心態', '致富心態', '股息Cover我每一天'],
-            '核心金句': ['財富是你看不到的資產。', '不要用時間換取金錢，要用金錢買回自由。', '持續買進，股息再投入創造複利。']
-        })
-
-    st.markdown("""
-    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #4a90e2; margin-bottom: 20px;">
-        <b>💡 知識萃取區</b>：將長篇文章或書摘貼在下方，讓 AI 幫您提煉出最核心的重點金句！
-    </div>
-    """, unsafe_allow_html=True)
-    
-    with st.expander("🤖 點此展開 AI 讀書助理", expanded=False):
-        book_text = st.text_area("📝 貼上內容：", height=150, key="book_input")
-        if st.button("✨ 萃取精華金句", use_container_width=True):
-            if api_key and book_text:
-                with st.spinner("正在為您淬鍊知識..."):
-                    genai.configure(api_key=api_key)
-                    prompt = f"這是一段書本摘錄。請用精煉的繁體中文列出：\n1. 💡 核心觀點 (一句話總結)\n2. 🔑 關鍵金句 (請用列點方式列出最精華的幾句話)\n\n內容：\n{book_text}"
-                    res = genai.GenerativeModel('gemini-2.5-flash').generate_content(prompt)
-                    st.info(res.text)
-            else:
-                st.warning("請先輸入 API Key 並貼上內容！")
-
-    st.markdown("---")
-
-    view_mode = st.radio("切換資料庫視圖：", ["📚 書籍分類視圖 (自動按書名統整金句)", "📝 表格管理模式 (可自訂上下排序)"], horizontal=True)
-
-    if "書籍分類" in view_mode:
-        st.write("")
-        st.session_state.notes_df_v3['排序'] = pd.to_numeric(st.session_state.notes_df_v3['排序'], errors='coerce').fillna(999)
-        grouped_notes = st.session_state.notes_df_v3.sort_values('排序').groupby('書名或來源', sort=False)
-        
-        for book_name, group in grouped_notes:
-            with st.expander(f"📖 讀書筆記：{book_name}", expanded=True):
-                for idx, row in group.iterrows():
-                    st.caption(f"📅 記錄時間：{row['建立日期']}")
-                    st.markdown(f"💡 **{row['核心金句']}**")
-                    if idx != group.index[-1]:
-                        st.markdown("<hr style='margin: 0.5em 0px; border-top: 1px dashed #ccc;'/>", unsafe_allow_html=True)
-    else:
-        st.info("💡 **上下移動秘訣**：請修改最左側「排序」欄位的數字（如 1, 2, 3），然後點擊一下「排序」的表頭欄位，系統就會自動幫你上下排列好！")
-        edited_notes = st.data_editor(st.session_state.notes_df_v3, num_rows="dynamic", use_container_width=True, key="notion_editor")
-        
-        if st.button("✅ 儲存修改 (切換回分類視圖前，請先點此儲存)", type="primary"):
-            st.session_state.notes_df_v3 = edited_notes.copy()
-            del st.session_state['notion_editor']
-            st.success("✅ 儲存成功！現在可以切換回書籍分類視圖查看了。")
-            st.rerun()
-        
-        st.markdown("---")
-        st.caption("💾 備份您的專屬金庫")
-        col_nsave, col_nload, _ = st.columns([1, 1, 2])
-        with col_nsave:
-            csv_notes = edited_notes.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("⬇️ 下載筆記存檔", csv_notes, "my_book_notes.csv", "text/csv", use_container_width=True)
-        with col_nload:
-            uploaded_notes = st.file_uploader("📂 上傳筆記還原：", type="csv", label_visibility="collapsed")
-            if uploaded_notes is not None:
-                if st.button("確認還原", use_container_width=True):
-                    st.session_state.notes_df_v3 = pd.read_csv(uploaded_notes)
-                    if 'notion_editor' in st.session_state:
-                        del st.session_state['notion_editor']
-                    st.rerun()
