@@ -1,3 +1,10 @@
+沒問題！我們這就把「美債」跟「日債」拆成兩個獨立的區塊，讓版面看起來更乾淨俐落、一目瞭然。
+
+我已經在第二分頁（籌碼與大盤儀表板）中，將原本的群組拆分為 **「🦅 美國公債殖利率」** 與 **「🌸 日本公債殖利率」**，同時保留了原本「%」符號的單位轉換功能。
+
+請複製這份 **最新的完整版程式碼** 並覆蓋您的 `app.py`：
+
+```python
 import streamlit as st
 import requests
 import xml.etree.ElementTree as ET
@@ -307,7 +314,7 @@ with tab1:
                 st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
     st.markdown("---")
-    st.markdown("### 📈 每日資產波動追蹤")
+    st.markdown("### 📈 每日資 अलं動追蹤")
     st.caption("請先點擊上方的「🔄 產生專業持股報表」後，再點擊下方按鈕將今日數據儲存到您的歷史曲線中。")
     
     col_snap, col_empty = st.columns([1, 2])
@@ -358,7 +365,7 @@ with tab1:
                     if 'hist_editor' in st.session_state: del st.session_state['hist_editor']
                     st.rerun()
 
-# 【分頁 2】🪙 籌碼與大盤儀表板 (🌟 已新增美日公債殖利率區塊)
+# 【分頁 2】🪙 籌碼與大盤儀表板 (🌟 已將美債/日債拆分為獨立區塊)
 with tab2:
     st.subheader("🪙 全市場即時大盤與台股籌碼戰報")
     st.markdown("### 🇹🇼 今日台股籌碼戰報 (三大法人/期貨/融資)")
@@ -395,10 +402,11 @@ with tab2:
     st.markdown("---")
     pionex_tokens = {"Bitcoin (BTC)": "BTC_USDT", "Ethereum (ETH)": "ETH_USDT", "Cardano (ADA)": "ADA_USDT"}
     
-    # 🌟 在此新增殖利率與自訂群組
+    # 🌟 拆分美債與日債群組
     yahoo_groups = {
         "💻 科技與半導體 (Tech)": {"輝達 (NVDA)": "NVDA", "特斯拉 (TSLA)": "TSLA", "蘋果 (AAPL)": "AAPL", "微軟 (MSFT)": "MSFT", "台積電 (TSM)": "TSM"},
-        "🏛️ 美日公債殖利率 (Yields)": {"美債10年期 (^TNX)": "^TNX", "美債20年期 (^TYX)": "^TYX", "美債5年期 (^FVX)": "^FVX", "美債13週 (^IRX)": "^IRX", "日債10年期 (JP10Y.B)": "JP10Y.B", "日債2年期 (JP2Y.B)": "JP2Y.B"},
+        "🦅 美國公債殖利率 (US Yields)": {"美債10年期 (^TNX)": "^TNX", "美債20年期 (^TYX)": "^TYX", "美債5年期 (^FVX)": "^FVX", "美債13週 (^IRX)": "^IRX"},
+        "🌸 日本公債殖利率 (JP Yields)": {"日債10年期 (JP10Y.B)": "JP10Y.B", "日債2年期 (JP2Y.B)": "JP2Y.B"},
         "⚔️ 戰爭避險與能源 (Energy & Defense)": {"布蘭特原油 (BZ=F)": "BZ=F", "黃金期貨 (GC=F)": "GC=F", "天然氣 (NG=F)": "NG=F", "洛克希德馬丁 (LMT)": "LMT"},
         "📈 總經指數與 ETF (Index)": {"納斯達克 (QQQ)": "QQQ", "標普500 (SPY)": "SPY", "半導體 (SOXX)": "SOXX"}
     }
@@ -435,7 +443,7 @@ with tab2:
                 for idx, (label, symbol) in enumerate(tokens.items()):
                     stock = yahoo_data.get(symbol)
                     if stock and stock['price'] > 0:
-                        # 🌟 自動判斷是否為殖利率，移除 $ 符號並改為 %
+                        # 🌟 自動判斷是否為殖利率(含Yields關鍵字)，移除 $ 符號並改為 %
                         is_yield = "Yields" in group_name
                         prefix = "" if is_yield else "$"
                         suffix = "%" if is_yield else ""
@@ -444,7 +452,7 @@ with tab2:
                         cols[idx % 4].metric(label, fmt_price, f"{stock['change_pct']:.2f}%")
     auto_refresh_dual_engine()
 
-# 【分頁 3 (原分頁4)】🏢 企業深度分析與雙股對決
+# 【分頁 3】🏢 企業深度分析與雙股對決
 with tab3:
     st.subheader("🏢 企業深度分析與雙股對決")
     analysis_mode = st.radio("請選擇分析模式：", ["🔍 單一個股深度健檢", "⚔️ 雙股競爭對決分析"], horizontal=True)
@@ -542,7 +550,7 @@ with tab3:
                         st.markdown(res.text)
                     except Exception as e: st.error(f"❌ 報告生成失敗：{e}")
 
-# 【分頁 4 (原分頁5)】Seeking Alpha AI 專業助理
+# 【分頁 4】Seeking Alpha AI 專業助理
 with tab4:
     st.subheader("📖 Seeking Alpha AI 專業閱讀助理")
     if "sa_text_input" not in st.session_state: st.session_state.sa_text_input = ""
@@ -573,7 +581,7 @@ with tab4:
                     st.write(res.text)
                 except Exception as e: st.error(f"❌ AI 解析失敗：{e}")
 
-# 【分頁 5 (原分頁6)】產業新聞與 AI 總結
+# 【分頁 5】產業新聞與 AI 總結
 with tab5:
     st.subheader("📰 產業新聞與 AI 總結")
     search_query = st.text_input("🔍 查詢產業或公司：", "例如：特斯拉 最新財報與表現")
@@ -593,7 +601,7 @@ with tab5:
                         st.write(res.text)
             else: st.error("❌ 抓取失敗。")
 
-# 【分頁 6 (原分頁8)】⭐ 投資計畫與超級複利試算機 
+# 【分頁 6】⭐ 投資計畫與超級複利試算機 
 with tab6:
     st.subheader("⭐ 長期投資計畫與超級複利試算機")
     
@@ -652,3 +660,5 @@ with tab6:
 
         total_future_twd = ((qqqm_fv + voo_fv) * exchange_rate) + tw_fv
         st.success(f"🎉 **{invest_years} 年後，三引擎總資產預估可達：NT$ {total_future_twd:,.0f}**")
+
+```
